@@ -13,11 +13,20 @@ const reportsRoutes   = require('./routes/reportsRoutes');
 const roleRoutes      = require('./routes/roleRoutes');
 const leadRoutes      = require('./routes/leadRoutes');
 const AppError = require('./utils/appError');
+const globalErrorHandler = require('./middlewares/errorController');
 
 const app = express();
 
-app.use(helmet());
-app.use(cors());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
+
+app.use(cors({
+  origin: true,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 app.use(morgan('dev'));
 
@@ -43,14 +52,6 @@ app.use((req, res, next) => {
 });
 
 // Global error handler
-app.use((err, req, res, next) => {
-  err.statusCode = err.statusCode || 500;
-  err.status     = err.status     || 'error';
-  res.status(err.statusCode).json({
-    status: err.status,
-    message: err.message,
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
-  });
-});
+app.use(globalErrorHandler);
 
 module.exports = app;
