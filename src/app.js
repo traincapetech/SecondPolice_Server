@@ -14,7 +14,6 @@ const roleRoutes      = require('./routes/roleRoutes');
 const leadRoutes      = require('./routes/leadRoutes');
 const AppError = require('./utils/appError');
 const globalErrorHandler = require('./middlewares/errorController');
-<<<<<<< HEAD
 
 const { globalLimiter } = require('./middlewares/rateLimiter');
 
@@ -22,21 +21,13 @@ const app = express();
 
 app.set('trust proxy', 1);
 
-=======
-
-const app = express();
-
->>>>>>> 512040c9b443dcfd83f97acf510c9f7ac67da363
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
-<<<<<<< HEAD
 // Apply global rate limiter to all /api routes
 app.use('/api', globalLimiter);
 
-=======
->>>>>>> 512040c9b443dcfd83f97acf510c9f7ac67da363
 app.use(cors({
   origin: true,
   credentials: true,
