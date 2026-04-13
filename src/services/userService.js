@@ -6,7 +6,8 @@ const AppError = require('../utils/appError');
  * Creates an employee for a specific tenant
  */
 const addEmployee = async (tenantId, data) => {
-  const { name, email, temporaryPassword, role, customRoleId } = data;
+  const { name, temporaryPassword, role, customRoleId } = data;
+  const email = data.email.toLowerCase().trim();
 
   // 1. Check if user already exists
   const existingUser = await prisma.user.findUnique({ where: { email } });

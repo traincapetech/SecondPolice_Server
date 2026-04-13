@@ -22,11 +22,9 @@ const register = async (req, res, next) => {
           id: user.id,
           name: user.name,
           email: user.email,
-          role: user.role
-        },
-        tenant: {
-          id: tenant.id,
-          name: tenant.name
+          role: user.role,
+          tenantId: user.tenantId,
+          isEmailVerified: user.isEmailVerified
         }
       }
     });
@@ -97,6 +95,21 @@ const resetPassword = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+/**
+ * POST /auth/resend-otp
+ * Two use-cases:
+ *  - Email verification (authenticated, no body needed): uses req.user.id
+ *  - Forgot-password resend (unauthenticated): requires { email } in body
+ */
+const resendOTP = async (req, res, next) => {
+  try {
+    const userId = req.user?.id ?? null;
+    const email  = req.body?.email ?? null;
+    await authService.resendOTP({ userId, email });
+    res.status(200).json({ status: 'success', message: 'A new code has been sent to your email.' });
+  } catch (err) { next(err); }
+};
+
 const getMe = async (req, res, next) => {
   try {
     // req.user is guaranteed to be hydrated by the authenticate middleware
@@ -111,4 +124,4 @@ const getMe = async (req, res, next) => {
   }
 };
 
-module.exports = { register, login, getMe, verifyOTP, forgotPassword, resetPassword };
+module.exports = { register, login, getMe, verifyOTP, forgotPassword, resetPassword, resendOTP };

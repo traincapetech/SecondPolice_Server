@@ -40,7 +40,7 @@ const LEAD_SELECT = {
   firstName: true, lastName: true, email: true, phone: true,
   company: true, jobTitle: true,
   source: true, status: true, priority: true,
-  estimatedValue: true, notes: true,
+  estimatedValue: true, currency: true, notes: true,
   createdAt: true, updatedAt: true,
   assignedTo: { select: { id: true, name: true, email: true } },
   createdBy: { select: { id: true, name: true } },
@@ -113,7 +113,7 @@ exports.createLead = async (req, res, next) => {
   try {
     const {
       firstName, lastName, email, phone, company, jobTitle,
-      source, status, priority, estimatedValue, notes,
+      source, status, priority, estimatedValue, currency, notes,
     } = req.body;
 
     if (!firstName) return next(new AppError('First name is required', 400));
@@ -124,11 +124,14 @@ exports.createLead = async (req, res, next) => {
     const lead = await prisma.lead.create({
       data: {
         tenantId: req.user.tenantId,
-        firstName, lastName, email, phone, company, jobTitle,
+        firstName, lastName,
+        email: email ? email.toLowerCase().trim() : null,
+        phone, company, jobTitle,
         source: source || 'OTHER',
         status: status || 'NEW',
         priority: priority || 'MEDIUM',
         estimatedValue: estimatedValue ? parseFloat(estimatedValue) : null,
+        currency: currency || 'USD',
         notes,
         assignedToId: assignee?.id ?? null,
         createdById: req.user.id,
@@ -150,7 +153,7 @@ exports.updateLead = async (req, res, next) => {
 
     const {
       firstName, lastName, email, phone, company, jobTitle,
-      source, status, priority, estimatedValue, notes, assignedToId,
+      source, status, priority, estimatedValue, currency, notes, assignedToId,
     } = req.body;
 
     const lead = await prisma.lead.update({
@@ -158,7 +161,7 @@ exports.updateLead = async (req, res, next) => {
       data: {
         firstName:      firstName      ?? existing.firstName,
         lastName:       lastName       ?? existing.lastName,
-        email:          email          ?? existing.email,
+        email:          email != null ? email.toLowerCase().trim() : existing.email,
         phone:          phone          ?? existing.phone,
         company:        company        ?? existing.company,
         jobTitle:       jobTitle       ?? existing.jobTitle,
@@ -166,6 +169,7 @@ exports.updateLead = async (req, res, next) => {
         status:         status         ?? existing.status,
         priority:       priority       ?? existing.priority,
         estimatedValue: estimatedValue !== undefined ? parseFloat(estimatedValue) : existing.estimatedValue,
+        currency:       currency       ?? existing.currency,
         notes:          notes          ?? existing.notes,
         assignedToId:   assignedToId   !== undefined ? assignedToId : existing.assignedToId,
       },

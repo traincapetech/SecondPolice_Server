@@ -9,7 +9,7 @@ const addEmployee = async (req, res, next) => {
   try {
     const validationResult = addEmployeeSchema.safeParse(req.body);
     if (!validationResult.success) {
-      return next(new AppError(validationResult.error.errors[0].message, 400));
+      return next(new AppError(validationResult.error.issues[0].message, 400));
     }
     const user = await userService.addEmployee(req.user.tenantId, validationResult.data);
     res.status(201).json({

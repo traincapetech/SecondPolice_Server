@@ -13,6 +13,12 @@ router.post('/verify-otp', authLimiter, authenticate, authController.verifyOTP);
 router.post('/forgot-password', authLimiter, authController.forgotPassword);
 router.post('/reset-password', authLimiter, authController.resetPassword);
 
+// Resend OTP — authenticated (email verify) OR unauthenticated (forgot-password)
+router.post('/resend-otp', authLimiter, (req, res, next) => {
+  // Try to authenticate; if token missing/invalid just continue without req.user
+  authenticate(req, res, (err) => next());
+}, authController.resendOTP);
+
 router.get('/me', authenticate, authController.getMe);
 
 module.exports = router;

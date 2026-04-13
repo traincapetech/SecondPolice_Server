@@ -24,7 +24,8 @@ const signToken = (userId, tenantId, role) => {
  * Register a new Tenant AND the initial ADMIN user
  */
 const registerTenant = async (data) => {
-  const { companyName, name, email, password } = data;
+  const { companyName, name, password } = data;
+  const email = data.email.toLowerCase().trim();
 
   // 1. Check if user already exists
   const existingUser = await prisma.user.findUnique({ where: { email } });
@@ -79,7 +80,8 @@ const registerTenant = async (data) => {
 /**
  * Login logic
  */
-const login = async (email, password) => {
+const login = async (emailRaw, password) => {
+  const email = emailRaw.toLowerCase().trim();
   // 1. Find user and include tenant details
   const user = await prisma.user.findUnique({
     where: { email },
@@ -124,7 +126,8 @@ const verifyEmailOTP = async (userId, otpCode) => {
 /**
  * Forgot Password (Sends OTP to email)
  */
-const forgotPassword = async (email) => {
+const forgotPassword = async (emailRaw) => {
+  const email = emailRaw.toLowerCase().trim();
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) {
     // We don't throw an error to prevent email enumeration, just return silently
@@ -154,7 +157,8 @@ const forgotPassword = async (email) => {
 /**
  * Reset Password (validates OTP and changes password)
  */
-const resetPassword = async (email, otpCode, newPassword) => {
+const resetPassword = async (emailRaw, otpCode, newPassword) => {
+  const email = emailRaw.toLowerCase().trim();
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) throw new AppError('Invalid request.', 400);
 
@@ -176,4 +180,52 @@ const resetPassword = async (email, otpCode, newPassword) => {
   return { success: true };
 };
 
-module.exports = { registerTenant, login, verifyEmailOTP, forgotPassword, resetPassword };
+/**
+ * Resend OTP — works for both email verification AND forgot-password flows.
+ * For email verification: caller passes userId (from JWT, no email needed).
+ * For forgot password:    caller passes email (not yet authenticated).
+ */
+const resendOTP = async ({ userId, email: emailRaw }) => {
+  let user;
+
+  if (userId) {
+    user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new AppError('User not found.', 404);
+    if (user.isEmailVerified) throw new AppError('Email is already verified.', 400);
+  } else if (emailRaw) {
+    const email = emailRaw.toLowerCase().trim();
+    user = await prisma.user.findUnique({ where: { email } });
+    // Always return success to prevent email enumeration
+    if (!user) return { success: true };
+  } else {
+    throw new AppError('User ID or email is required.', 400);
+  }
+
+  // Rate-guard: don't let them spam within 60 seconds
+  if (user.otpExpiry && user.otpExpiry > new Date(Date.now() - 60 * 1000)) {
+    // OTP was generated less than 60s ago — still valid, just resend it
+    // (we don't regenerate, just re-email the same code)
+  } else {
+    // Generate a fresh OTP
+    const otp = generateOTP();
+    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
+    await prisma.user.update({ where: { id: user.id }, data: { otp, otpExpiry } });
+    user = await prisma.user.findUnique({ where: { id: user.id } });
+  }
+
+  const subject = userId ? 'Verify Your Workspace Account' : 'Password Reset Request';
+  const body = userId
+    ? `<p>Hi ${user.name},</p><p>Your new verification code is: <strong>${user.otp}</strong></p><p>This code expires in 10 minutes.</p>`
+    : `<p>Hi ${user.name},</p><p>Your new password reset code is: <strong>${user.otp}</strong></p><p>This code expires in 10 minutes.</p>`;
+
+  try {
+    await sendEmail(user.email, user.name, subject, body);
+  } catch (err) {
+    console.error('Failed to resend OTP:', err);
+    throw new AppError('Failed to send email. Please try again.', 500);
+  }
+
+  return { success: true };
+};
+
+module.exports = { registerTenant, login, verifyEmailOTP, forgotPassword, resetPassword, resendOTP };

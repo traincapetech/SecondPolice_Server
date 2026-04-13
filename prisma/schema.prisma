@@ -12,6 +12,7 @@ model Tenant {
   domain            String?     @unique
   createdAt         DateTime    @default(now())
   leadAssigneeIndex Int         @default(0)
+  displayCurrency   String      @default("USD")
   users             User[]
   customers         Customer[]
   deals             Deal[]
@@ -62,6 +63,7 @@ model Deal {
   tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   title      String
   value      Float
+  currency   String     @default("USD")
   stage      String     @default("LEAD")
   assignedTo String?
   user       User?      @relation(fields: [assignedTo], references: [id], onDelete: SetNull)
@@ -138,6 +140,7 @@ model Lead {
   status         LeadStatus   @default(NEW)
   priority       LeadPriority @default(MEDIUM)
   estimatedValue Float?
+  currency       String       @default("USD")
   notes          String?
 
   // Assignment

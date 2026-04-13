@@ -56,7 +56,8 @@ const getCustomers = async (req, res, next) => {
 // POST /api/customers - Create a new customer
 const createCustomer = async (req, res, next) => {
   try {
-    const { name, email, phone, status } = req.body;
+    const { name, phone, status } = req.body;
+    const email = req.body.email ? req.body.email.toLowerCase().trim() : null;
     if (!name) return next(new AppError('Customer name is required.', 400));
 
     const customer = await prisma.customer.create({
@@ -79,7 +80,8 @@ const createCustomer = async (req, res, next) => {
 const updateCustomer = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { name, email, phone, status } = req.body;
+    const { name, phone, status } = req.body;
+    const email = req.body.email != null ? req.body.email.toLowerCase().trim() : undefined;
 
     // Check if it's a real customer
     let existing = await prisma.customer.findFirst({
@@ -106,7 +108,7 @@ const updateCustomer = async (req, res, next) => {
 
       const lead = await prisma.lead.update({
         where: { id },
-        data: { firstName, lastName, email, phone, status }
+        data: { firstName, lastName, email: email != null ? email : undefined, phone, status }
       });
       return res.status(200).json({ status: 'success', data: { customer: lead } });
     }

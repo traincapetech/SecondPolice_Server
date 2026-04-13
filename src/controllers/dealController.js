@@ -27,7 +27,7 @@ const getDeals = async (req, res, next) => {
 // POST /api/deals - Create a new deal
 const createDeal = async (req, res, next) => {
   try {
-    const { title, value, stage, assignedTo } = req.body;
+    const { title, value, stage, assignedTo, currency } = req.body;
     if (!title) return next(new AppError('Deal title is required.', 400));
 
     const deal = await prisma.deal.create({
@@ -35,6 +35,7 @@ const createDeal = async (req, res, next) => {
         tenantId: req.user.tenantId,
         title,
         value: parseFloat(value) || 0,
+        currency: currency || 'USD',
         stage: stage || 'LEAD',
         assignedTo: assignedTo || req.user.id,
       },
@@ -57,7 +58,7 @@ const updateDeal = async (req, res, next) => {
     });
     if (!existing) return next(new AppError('Deal not found.', 404));
 
-    const { title, value, stage, assignedTo } = req.body;
+    const { title, value, stage, assignedTo, currency } = req.body;
 
     const deal = await prisma.deal.update({
       where: { id },
@@ -66,6 +67,7 @@ const updateDeal = async (req, res, next) => {
         ...(value !== undefined && { value: parseFloat(value) }),
         ...(stage && { stage }),
         ...(assignedTo !== undefined && { assignedTo }),
+        ...(currency && { currency }),
       },
       include: { user: { select: { id: true, name: true } } },
     });
