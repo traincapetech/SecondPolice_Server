@@ -22,38 +22,40 @@ model PendingRegistration {
 }
 
 model Tenant {
-  id                String      @id @default(uuid())
+  id                String         @id @default(uuid())
   name              String
-  domain            String?     @unique
-  createdAt         DateTime    @default(now())
-  leadAssigneeIndex Int         @default(0)
-  displayCurrency   String      @default("USD")
+  domain            String?        @unique
+  createdAt         DateTime       @default(now())
+  leadAssigneeIndex Int            @default(0)
+  displayCurrency   String         @default("USD")
   users             User[]
   customers         Customer[]
   deals             Deal[]
   activities        Activity[]
   customRoles       CustomRole[]
   leads             Lead[]
+  notifications     Notification[]
 }
 
 model User {
-  id           String      @id @default(uuid())
+  id           String         @id @default(uuid())
   tenantId     String
-  tenant       Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant       Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   name         String
-  email        String      @unique
+  email        String         @unique
   passwordHash    String
-  isEmailVerified Boolean     @default(false)
+  isEmailVerified Boolean        @default(false)
   otp             String?
   otpExpiry       DateTime?
-  role            Role        @default(EMPLOYEE)
-  createdAt       DateTime    @default(now())
+  role            Role           @default(EMPLOYEE)
+  createdAt       DateTime       @default(now())
   deals        Deal[]
   activities   Activity[]
+  notifications Notification[]
   customRoleId String?
-  customRole   CustomRole? @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
-  assignedLeads Lead[]     @relation("LeadAssignee")
-  createdLeads  Lead[]     @relation("LeadCreator")
+  customRole   CustomRole?    @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
+  assignedLeads Lead[]        @relation("LeadAssignee")
+  createdLeads  Lead[]        @relation("LeadCreator")
 
   @@index([tenantId])
 }
@@ -85,6 +87,23 @@ model Deal {
   createdAt  DateTime   @default(now())
   activities Activity[]
 
+  @@index([tenantId])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // e.g. LEAD_ASSIGNED
+  title     String
+  body      String
+  linkUrl   String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
   @@index([tenantId])
 }
 

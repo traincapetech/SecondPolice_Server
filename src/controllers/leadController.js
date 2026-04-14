@@ -1,5 +1,6 @@
 const prisma = require('../lib/prisma');
 const AppError = require('../utils/appError');
+const { createNotification } = require('../services/notificationService');
 
 /**
  * Resolves which users in this tenant are "sales people" —
@@ -140,6 +141,20 @@ exports.createLead = async (req, res, next) => {
     });
 
     res.status(201).json({ status: 'success', data: { lead } });
+
+    // Fire assignment notification (non-blocking)
+    if (assignee) {
+      createNotification({
+        tenantId: req.user.tenantId,
+        userId: assignee.id,
+        type: 'LEAD_ASSIGNED',
+        title: 'New Lead Assigned To You',
+        body: `${lead.firstName}${lead.lastName ? ' ' + lead.lastName : ''}${
+          lead.company ? ' from ' + lead.company : ''
+        } has been assigned to you.`,
+        linkUrl: `/leads`,
+      }).catch(err => console.error('Failed to create notification:', err));
+    }
   } catch (err) { next(err); }
 };
 
@@ -186,6 +201,7 @@ exports.updateLead = async (req, res, next) => {
               tenantId: req.user.tenantId,
               title: `${lead.company || `${lead.firstName} ${lead.lastName || ''}`.trim()} - Sales Deal`,
               value: lead.estimatedValue,
+              currency: lead.currency || 'USD',
               stage: 'PROPOSAL',
               assignedTo: lead.assignedToId || req.user.id
             }
@@ -198,6 +214,21 @@ exports.updateLead = async (req, res, next) => {
     // --------------------------------
 
     res.status(200).json({ status: 'success', data: { lead } });
+
+    // Fire re-assignment notification if assignee changed (non-blocking)
+    const newAssigneeId = assignedToId !== undefined ? assignedToId : existing.assignedToId;
+    if (newAssigneeId && newAssigneeId !== existing.assignedToId) {
+      createNotification({
+        tenantId: req.user.tenantId,
+        userId: newAssigneeId,
+        type: 'LEAD_ASSIGNED',
+        title: 'New Lead Assigned To You',
+        body: `${lead.firstName}${lead.lastName ? ' ' + lead.lastName : ''}${
+          lead.company ? ' from ' + lead.company : ''
+        } has been assigned to you.`,
+        linkUrl: `/leads`,
+      }).catch(err => console.error('Failed to create notification:', err));
+    }
   } catch (err) { next(err); }
 };
 

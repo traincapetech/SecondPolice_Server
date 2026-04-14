@@ -13,6 +13,7 @@ const reportsRoutes   = require('./routes/reportsRoutes');
 const roleRoutes      = require('./routes/roleRoutes');
 const leadRoutes      = require('./routes/leadRoutes');
 const settingsRoutes  = require('./routes/settingsRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 const AppError = require('./utils/appError');
 const globalErrorHandler = require('./middlewares/errorController');
 
@@ -47,8 +48,9 @@ app.use('/api/dashboard',  dashboardRoutes);
 app.use('/api/activities', activityRoutes);
 app.use('/api/reports',    reportsRoutes);
 app.use('/api/roles',      roleRoutes);
-app.use('/api/leads',      leadRoutes);
-app.use('/api/settings',   settingsRoutes);
+app.use('/api/leads',          leadRoutes);
+app.use('/api/settings',       settingsRoutes);
+app.use('/api/notifications',  notificationRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
