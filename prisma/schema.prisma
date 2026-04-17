@@ -1,0 +1,219 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Temporarily holds registration data until email is verified.
+// Deleted once OTP is confirmed and the real Tenant+User are created.
+model PendingRegistration {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  companyName  String
+  passwordHash String
+  otp          String
+  otpExpiry    DateTime
+  createdAt    DateTime @default(now())
+
+  @@map("pending_registrations")
+}
+
+model Tenant {
+  id                String         @id @default(uuid())
+  name              String
+  domain            String?        @unique
+  createdAt         DateTime       @default(now())
+  leadAssigneeIndex Int            @default(0)
+  displayCurrency   String         @default("USD")
+  users             User[]
+  customers         Customer[]
+  deals             Deal[]
+  activities        Activity[]
+  customRoles       CustomRole[]
+  leads             Lead[]
+  notifications     Notification[]
+}
+
+model User {
+  id           String         @id @default(uuid())
+  tenantId     String
+  tenant       Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name         String
+  email        String         @unique
+  passwordHash    String
+  isEmailVerified Boolean        @default(false)
+  otp             String?
+  otpExpiry       DateTime?
+  role            Role           @default(EMPLOYEE)
+  workspaceId     String?        @unique
+  createdAt       DateTime       @default(now())
+  deals        Deal[]
+  activities   Activity[]
+  notifications Notification[]
+  customRoleId String?
+  customRole   CustomRole?    @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
+  assignedLeads Lead[]        @relation("LeadAssignee")
+  createdLeads  Lead[]        @relation("LeadCreator")
+
+  @@index([tenantId])
+}
+
+model Customer {
+  id         String     @id @default(uuid())
+  tenantId   String
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name       String
+  email      String?
+  phone      String?
+  status     String     @default("LEAD")
+  createdAt  DateTime   @default(now())
+  activities Activity[]
+
+  @@index([tenantId])
+}
+
+model Deal {
+  id         String     @id @default(uuid())
+  tenantId   String
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  title      String
+  value      Float
+  currency   String     @default("USD")
+  stage      String     @default("LEAD")
+  assignedTo String?
+  user       User?      @relation(fields: [assignedTo], references: [id], onDelete: SetNull)
+  createdAt  DateTime   @default(now())
+  activities Activity[]
+
+  @@index([tenantId])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // e.g. LEAD_ASSIGNED
+  title     String
+  body      String
+  linkUrl   String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([tenantId])
+}
+
+model Activity {
+  id          String       @id @default(uuid())
+  tenantId    String
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  type        ActivityType @default(TASK)
+  title       String
+  notes       String?
+  dueDate     DateTime?
+  completedAt DateTime?
+  customerId  String?
+  customer    Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  dealId      String?
+  deal        Deal?        @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime     @default(now())
+
+  @@index([tenantId])
+  @@index([customerId])
+  @@index([dealId])
+  @@index([userId])
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  EMPLOYEE
+}
+
+enum ActivityType {
+  CALL
+  EMAIL
+  MEETING
+  TASK
+}
+
+model CustomRole {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name        String
+  permissions Json
+  users       User[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
+}
+
+model Lead {
+  id             String       @id @default(uuid())
+  tenantId       String
+  tenant         Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // Contact info
+  firstName      String
+  lastName       String?
+  email          String?
+  phone          String?
+  company        String?
+  jobTitle       String?
+
+  // Lead details
+  source         LeadSource   @default(OTHER)
+  status         LeadStatus   @default(NEW)
+  priority       LeadPriority @default(MEDIUM)
+  estimatedValue Float?
+  currency       String       @default("USD")
+  notes          String?
+
+  // Assignment
+  assignedToId   String?
+  assignedTo     User?        @relation("LeadAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdById    String
+  createdBy      User         @relation("LeadCreator", fields: [createdById], references: [id])
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([tenantId])
+  @@index([assignedToId])
+  @@index([createdById])
+}
+
+enum LeadSource {
+  WEBSITE
+  REFERRAL
+  COLD_CALL
+  EMAIL
+  SOCIAL_MEDIA
+  ADVERTISEMENT
+  EVENT
+  OTHER
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  UNQUALIFIED
+  CONVERTED
+  LOST
+}
+
+enum LeadPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
