@@ -55,8 +55,11 @@ exports.getInvoicePDF = async (req, res, next) => {
     });
     if (!invoice) return next(new AppError('Invoice not found.', 404));
 
-    const tenant = await prisma.tenant.findUnique({ where: { id: req.user.tenantId }, select: { name: true } });
-    const pdfBuffer = await generateInvoicePDF(invoice, tenant.name);
+    const tenant = await prisma.tenant.findUnique({
+      where:  { id: req.user.tenantId },
+      select: { name: true, companyProfile: true },
+    });
+    const pdfBuffer = await generateInvoicePDF(invoice, tenant);
 
     res.set({
       'Content-Type':        'application/pdf',
@@ -76,8 +79,11 @@ exports.sendInvoice = async (req, res, next) => {
     if (!invoice) return next(new AppError('Invoice not found.', 404));
     if (invoice.status === 'PAID') return next(new AppError('This invoice is already paid.', 400));
 
-    const tenant = await prisma.tenant.findUnique({ where: { id: req.user.tenantId }, select: { name: true } });
-    const updated = await generateAndSendInvoice(invoice.id, tenant.name);
+    const tenant = await prisma.tenant.findUnique({
+      where:  { id: req.user.tenantId },
+      select: { name: true, companyProfile: true },
+    });
+    const updated = await generateAndSendInvoice(invoice.id, tenant);
 
     res.status(200).json({ status: 'success', message: 'Invoice sent successfully.', data: { invoice: updated } });
   } catch (err) { next(err); }

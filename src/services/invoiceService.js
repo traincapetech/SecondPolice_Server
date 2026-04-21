@@ -72,8 +72,12 @@ async function createInvoiceFromDeal(deal, tenant) {
 /**
  * Generates the PDF and sends it via email.
  * Updates invoice status to SENT.
+ * @param {string} invoiceId
+ * @param {{ name: string, companyProfile: object }} tenant
  */
-async function generateAndSendInvoice(invoiceId, tenantName) {
+async function generateAndSendInvoice(invoiceId, tenant) {
+  const tenantName = typeof tenant === 'string' ? tenant : (tenant?.name || 'Your Company');
+
   const invoice = await prisma.invoice.findUnique({
     where: { id: invoiceId },
     include: { deal: { select: { title: true } } },
@@ -82,12 +86,12 @@ async function generateAndSendInvoice(invoiceId, tenantName) {
   if (!invoice) throw new Error('Invoice not found');
   if (!invoice.clientEmail) throw new Error('No client email on record. Please add one before sending.');
 
-  const pdfBuffer = await generateInvoicePDF(invoice, tenantName);
+  const pdfBuffer = await generateInvoicePDF(invoice, tenant);
   const base64PDF = pdfBuffer.toString('base64');
 
   const html = `
     <div style="font-family:sans-serif;max-width:560px;margin:0 auto;color:#1E293B;">
-      <div style="background:#E11D48;padding:28px 32px;border-radius:8px 8px 0 0;">
+      <div style="background:#4338CA;padding:28px 32px;border-radius:8px 8px 0 0;">
         <h1 style="margin:0;color:#fff;font-size:22px;">${tenantName}</h1>
         <p style="margin:4px 0 0;color:rgba(255,255,255,0.8);font-size:13px;">Invoice ${invoice.invoiceNo}</p>
       </div>
@@ -96,7 +100,7 @@ async function generateAndSendInvoice(invoiceId, tenantName) {
         <p style="margin:0 0 16px;color:#475569;">Please find your invoice attached for <strong>${invoice.deal?.title || 'services rendered'}</strong>.</p>
         <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
           <tr><td style="padding:8px 0;color:#64748B;font-size:13px;">Invoice No.</td><td style="padding:8px 0;font-weight:600;text-align:right;">${invoice.invoiceNo}</td></tr>
-          <tr><td style="padding:8px 0;color:#64748B;font-size:13px;">Amount Due</td><td style="padding:8px 0;font-weight:700;font-size:17px;text-align:right;color:#E11D48;">${new Intl.NumberFormat('en-IN',{style:'currency',currency:invoice.currency}).format(invoice.totalAmount)}</td></tr>
+          <tr><td style="padding:8px 0;color:#64748B;font-size:13px;">Amount Due</td><td style="padding:8px 0;font-weight:700;font-size:17px;text-align:right;color:#4338CA;">${new Intl.NumberFormat('en-IN',{style:'currency',currency:invoice.currency}).format(invoice.totalAmount)}</td></tr>
           <tr><td style="padding:8px 0;color:#64748B;font-size:13px;">Due Date</td><td style="padding:8px 0;font-weight:600;text-align:right;">${new Date(invoice.dueDate).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</td></tr>
         </table>
         <p style="margin:0;color:#64748B;font-size:12px;">The full invoice PDF is attached to this email. Please reach out if you have any questions.</p>
