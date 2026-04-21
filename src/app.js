@@ -15,6 +15,7 @@ const leadRoutes      = require('./routes/leadRoutes');
 const settingsRoutes  = require('./routes/settingsRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const invoiceRoutes       = require('./routes/invoiceRoutes');
+const prospectRoutes      = require('./routes/prospectRoutes');
 const AppError = require('./utils/appError');
 const globalErrorHandler = require('./middlewares/errorController');
 
@@ -53,6 +54,7 @@ app.use('/api/leads',          leadRoutes);
 app.use('/api/settings',       settingsRoutes);
 app.use('/api/notifications',  notificationRoutes);
 app.use('/api/invoices',        invoiceRoutes);
+app.use('/api/prospects',       prospectRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

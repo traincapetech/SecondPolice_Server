@@ -6,7 +6,13 @@ exports.getSettings = async (req, res, next) => {
   try {
     const tenant = await prisma.tenant.findUnique({
       where: { id: req.user.tenantId },
-      select: { id: true, name: true, displayCurrency: true, taxRate: true },
+      select: {
+        id: true,
+        name: true,
+        displayCurrency: true,
+        taxRate: true,
+        companyProfile: true,
+      },
     });
     if (!tenant) return next(new AppError('Workspace not found.', 404));
     res.status(200).json({ status: 'success', data: { settings: tenant } });
@@ -65,6 +71,47 @@ exports.updateTaxRate = async (req, res, next) => {
       where: { id: req.user.tenantId },
       data: { taxRate: rate },
       select: { id: true, name: true, displayCurrency: true, taxRate: true },
+    });
+
+    res.status(200).json({ status: 'success', data: { settings: tenant } });
+  } catch (err) { next(err); }
+};
+
+/** PATCH /api/settings/company-profile — Admin only */
+exports.updateCompanyProfile = async (req, res, next) => {
+  try {
+    const {
+      businessCategory,
+      address,
+      city,
+      state,
+      pinCode,
+      country,
+      gstin,
+      pan,
+      companyEmail,
+      companyPhone,
+      logoUrl,
+    } = req.body;
+
+    const profile = {
+      businessCategory: businessCategory || null,
+      address:          address          || null,
+      city:             city             || null,
+      state:            state            || null,
+      pinCode:          pinCode          || null,
+      country:          country          || null,
+      gstin:            gstin            || null,
+      pan:              pan              || null,
+      companyEmail:     companyEmail     || null,
+      companyPhone:     companyPhone     || null,
+      logoUrl:          logoUrl          || null,
+    };
+
+    const tenant = await prisma.tenant.update({
+      where: { id: req.user.tenantId },
+      data:  { companyProfile: profile },
+      select: { id: true, name: true, companyProfile: true },
     });
 
     res.status(200).json({ status: 'success', data: { settings: tenant } });

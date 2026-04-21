@@ -7,8 +7,13 @@ const VALID_STAGES = ['LEAD', 'QUALIFIED', 'PROPOSAL', 'NEGOTIATION', 'WON', 'LO
 // GET /api/deals - List all deals for the current tenant
 const getDeals = async (req, res, next) => {
   try {
+    const where = { tenantId: req.user.tenantId };
+    if (req.user.role !== 'ADMIN') {
+      where.assignedTo = req.user.id;
+    }
+
     const deals = await prisma.deal.findMany({
-      where: { tenantId: req.user.tenantId },
+      where,
       include: {
         user: { select: { id: true, name: true } },
       },
@@ -54,10 +59,15 @@ const updateDeal = async (req, res, next) => {
   try {
     const { id } = req.params;
 
+    const where = { id, tenantId: req.user.tenantId };
+    if (req.user.role !== 'ADMIN') {
+      where.assignedTo = req.user.id;
+    }
+
     const existing = await prisma.deal.findFirst({
-      where: { id, tenantId: req.user.tenantId },
+      where,
     });
-    if (!existing) return next(new AppError('Deal not found.', 404));
+    if (!existing) return next(new AppError('Deal not found or you do not have permission.', 404));
 
     const { title, value, stage, assignedTo, currency } = req.body;
 
@@ -100,10 +110,15 @@ const deleteDeal = async (req, res, next) => {
   try {
     const { id } = req.params;
 
+    const where = { id, tenantId: req.user.tenantId };
+    if (req.user.role !== 'ADMIN') {
+      where.assignedTo = req.user.id;
+    }
+
     const existing = await prisma.deal.findFirst({
-      where: { id, tenantId: req.user.tenantId },
+      where,
     });
-    if (!existing) return next(new AppError('Deal not found.', 404));
+    if (!existing) return next(new AppError('Deal not found or you do not have permission', 404));
 
     await prisma.deal.delete({ where: { id } });
     res.status(204).json({ status: 'success', data: null });

@@ -55,24 +55,12 @@ exports.getLeads = async (req, res, next) => {
     const where = { tenantId: req.user.tenantId };
 
     // Strict Privacy Rules for Non-Admins
+    // Strict Privacy Rules for Non-Admins: Show only leads created by or assigned to the user
     if (req.user.role !== 'ADMIN') {
-      const perms = req.user.permissions || {};
-      const isLeadCreator = perms['Leads Management'] && perms['Leads Management'] !== 'No Access';
-      const isSalesPerson = perms['Sales Pipeline'] && perms['Sales Pipeline'] !== 'No Access';
-
-      if (isLeadCreator && isSalesPerson) {
-        where.OR = [
-          { createdById: req.user.id },
-          { assignedToId: req.user.id }
-        ];
-      } else if (isLeadCreator) {
-        where.createdById = req.user.id;
-      } else if (isSalesPerson) {
-        where.assignedToId = req.user.id;
-      } else {
-        // Fallback safety: If they miraculously hit this route without those roles
-        where.id = 'NO_ACCESS';
-      }
+      where.OR = [
+        { createdById: req.user.id },
+        { assignedToId: req.user.id }
+      ];
     }
 
     if (status) where.status = status;
@@ -100,8 +88,17 @@ exports.getLeads = async (req, res, next) => {
 /** GET /api/leads/:id */
 exports.getLead = async (req, res, next) => {
   try {
+    const where = { id: req.params.id, tenantId: req.user.tenantId };
+    
+    if (req.user.role !== 'ADMIN') {
+      where.OR = [
+        { createdById: req.user.id },
+        { assignedToId: req.user.id }
+      ];
+    }
+
     const lead = await prisma.lead.findFirst({
-      where: { id: req.params.id, tenantId: req.user.tenantId },
+      where,
       select: LEAD_SELECT,
     });
     if (!lead) return next(new AppError('Lead not found', 404));
@@ -171,10 +168,13 @@ exports.createLead = async (req, res, next) => {
 /** PUT /api/leads/:id */
 exports.updateLead = async (req, res, next) => {
   try {
-    const existing = await prisma.lead.findFirst({
-      where: { id: req.params.id, tenantId: req.user.tenantId },
-    });
-    if (!existing) return next(new AppError('Lead not found', 404));
+    const where = { id: req.params.id, tenantId: req.user.tenantId };
+    if (req.user.role !== 'ADMIN') {
+      where.OR = [{ createdById: req.user.id }, { assignedToId: req.user.id }];
+    }
+
+    const existing = await prisma.lead.findFirst({ where });
+    if (!existing) return next(new AppError('Lead not found or you do not have permission', 404));
 
     const {
       firstName, lastName, email, phone, company, jobTitle,
@@ -294,10 +294,15 @@ exports.updateLead = async (req, res, next) => {
 /** DELETE /api/leads/:id */
 exports.deleteLead = async (req, res, next) => {
   try {
+    const whereDelete = { id: req.params.id, tenantId: req.user.tenantId };
+    if (req.user.role !== 'ADMIN') {
+      whereDelete.OR = [{ createdById: req.user.id }, { assignedToId: req.user.id }];
+    }
+
     const existing = await prisma.lead.findFirst({
-      where: { id: req.params.id, tenantId: req.user.tenantId },
+      where: whereDelete,
     });
-    if (!existing) return next(new AppError('Lead not found', 404));
+    if (!existing) return next(new AppError('Lead not found or you do not have permission', 404));
 
     await prisma.lead.delete({ where: { id: req.params.id } });
     res.status(204).json({ status: 'success', data: null });

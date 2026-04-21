@@ -9,8 +9,16 @@ const getCustomers = async (req, res, next) => {
       orderBy: { createdAt: 'desc' },
     });
 
+    const leadWhere = { tenantId: req.user.tenantId };
+    if (req.user.role !== 'ADMIN') {
+      leadWhere.OR = [
+        { createdById: req.user.id },
+        { assignedToId: req.user.id }
+      ];
+    }
+
     const leads = await prisma.lead.findMany({
-      where: { tenantId: req.user.tenantId },
+      where: leadWhere,
       orderBy: { createdAt: 'desc' },
     });
 
@@ -97,8 +105,13 @@ const updateCustomer = async (req, res, next) => {
     }
 
     // Fallback: This might be a Lead being updated through the Customers tab
+    const leadWhere = { id, tenantId: req.user.tenantId };
+    if (req.user.role !== 'ADMIN') {
+      leadWhere.OR = [{ createdById: req.user.id }, { assignedToId: req.user.id }];
+    }
+
     let existingLead = await prisma.lead.findFirst({
-      where: { id, tenantId: req.user.tenantId },
+      where: leadWhere,
     });
 
     if (existingLead) {
@@ -133,8 +146,13 @@ const deleteCustomer = async (req, res, next) => {
       return res.status(204).json({ status: 'success', data: null });
     }
 
+    const leadWhere = { id, tenantId: req.user.tenantId };
+    if (req.user.role !== 'ADMIN') {
+      leadWhere.OR = [{ createdById: req.user.id }, { assignedToId: req.user.id }];
+    }
+
     let existingLead = await prisma.lead.findFirst({
-      where: { id, tenantId: req.user.tenantId },
+      where: leadWhere,
     });
 
     if (existingLead) {
