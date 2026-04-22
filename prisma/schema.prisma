@@ -93,6 +93,13 @@ model Deal {
   user       User?      @relation(fields: [assignedTo], references: [id], onDelete: SetNull)
   leadId     String?    @unique   // nullable; set when auto-created from a Lead conversion
   lead       Lead?      @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  
+  // Standalone contact info (for deals not linked to leads)
+  contactPerson String?
+  company       String?
+  email         String?
+  phone         String?
+
   createdAt  DateTime   @default(now())
   activities Activity[]
   invoice    Invoice?

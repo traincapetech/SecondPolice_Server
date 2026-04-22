@@ -16,6 +16,7 @@ const getDeals = async (req, res, next) => {
       where,
       include: {
         user: { select: { id: true, name: true } },
+        lead: true,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -33,7 +34,7 @@ const getDeals = async (req, res, next) => {
 // POST /api/deals - Create a new deal
 const createDeal = async (req, res, next) => {
   try {
-    const { title, value, tokenAmount, stage, assignedTo, currency } = req.body;
+    const { title, value, tokenAmount, stage, assignedTo, currency, contactPerson, company, email, phone } = req.body;
     if (!title) return next(new AppError('Deal title is required.', 400));
 
     const deal = await prisma.deal.create({
@@ -45,8 +46,16 @@ const createDeal = async (req, res, next) => {
         currency: currency || 'USD',
         stage: stage || 'LEAD',
         assignedTo: assignedTo || req.user.id,
+        contactPerson,
+        company,
+        email,
+        phone,
       },
-      include: { user: { select: { id: true, name: true } } },
+      include: { 
+        user: { select: { id: true, name: true } },
+        lead: true,
+      },
+
     });
 
     res.status(201).json({ status: 'success', data: { deal } });
@@ -70,7 +79,7 @@ const updateDeal = async (req, res, next) => {
     });
     if (!existing) return next(new AppError('Deal not found or you do not have permission.', 404));
 
-    const { title, value, tokenAmount, stage, assignedTo, currency } = req.body;
+    const { title, value, tokenAmount, stage, assignedTo, currency, contactPerson, company, email, phone } = req.body;
 
     const deal = await prisma.deal.update({
       where: { id },
@@ -81,8 +90,17 @@ const updateDeal = async (req, res, next) => {
         stage: stage || existing.stage,
         currency: currency || existing.currency,
         ...(assignedTo !== undefined && { assignedTo }),
+        ...(currency   && { currency }),
+        ...(contactPerson !== undefined && { contactPerson }),
+        ...(company !== undefined && { company }),
+        ...(email !== undefined && { email }),
+        ...(phone !== undefined && { phone }),
       },
-      include: { user: { select: { id: true, name: true } } },
+      include: { 
+        user: { select: { id: true, name: true } },
+        lead: true,
+      },
+
     });
 
     res.status(200).json({ status: 'success', data: { deal } });
