@@ -86,6 +86,7 @@ model Deal {
   tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   title      String
   value      Float
+  tokenAmount Float      @default(0)
   currency   String     @default("USD")
   stage      String     @default("LEAD")
   assignedTo String?

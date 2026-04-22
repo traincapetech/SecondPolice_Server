@@ -33,7 +33,7 @@ const getDeals = async (req, res, next) => {
 // POST /api/deals - Create a new deal
 const createDeal = async (req, res, next) => {
   try {
-    const { title, value, stage, assignedTo, currency } = req.body;
+    const { title, value, tokenAmount, stage, assignedTo, currency } = req.body;
     if (!title) return next(new AppError('Deal title is required.', 400));
 
     const deal = await prisma.deal.create({
@@ -41,6 +41,7 @@ const createDeal = async (req, res, next) => {
         tenantId: req.user.tenantId,
         title,
         value: parseFloat(value) || 0,
+        tokenAmount: parseFloat(tokenAmount) || 0,
         currency: currency || 'USD',
         stage: stage || 'LEAD',
         assignedTo: assignedTo || req.user.id,
@@ -69,16 +70,17 @@ const updateDeal = async (req, res, next) => {
     });
     if (!existing) return next(new AppError('Deal not found or you do not have permission.', 404));
 
-    const { title, value, stage, assignedTo, currency } = req.body;
+    const { title, value, tokenAmount, stage, assignedTo, currency } = req.body;
 
     const deal = await prisma.deal.update({
       where: { id },
       data: {
-        ...(title      && { title }),
-        ...(value !== undefined && { value: parseFloat(value) }),
-        ...(stage      && { stage }),
+        title: title !== undefined ? title : existing.title,
+        value: value !== undefined && value !== '' ? parseFloat(value) : existing.value,
+        tokenAmount: tokenAmount !== undefined && tokenAmount !== '' ? parseFloat(tokenAmount) : existing.tokenAmount,
+        stage: stage || existing.stage,
+        currency: currency || existing.currency,
         ...(assignedTo !== undefined && { assignedTo }),
-        ...(currency   && { currency }),
       },
       include: { user: { select: { id: true, name: true } } },
     });
