@@ -353,7 +353,6 @@ model Product {
   sku         String?
   description String?
   price       Float
-  taxRate     Float    @default(0)
   currency    Currency @default(USD)
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
