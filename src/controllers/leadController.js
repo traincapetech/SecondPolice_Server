@@ -41,7 +41,7 @@ const LEAD_SELECT = {
   firstName: true, lastName: true, email: true, phone: true,
   company: true, jobTitle: true,
   source: true, status: true, priority: true,
-  estimatedValue: true, currency: true, notes: true,
+  estimatedValue: true, currency: true, interestedProduct: true, notes: true,
   createdAt: true, updatedAt: true,
   assignedTo: { select: { id: true, name: true, email: true } },
   createdBy: { select: { id: true, name: true } },
@@ -111,7 +111,7 @@ exports.createLead = async (req, res, next) => {
   try {
     const {
       firstName, lastName, email, phone, company, jobTitle,
-      source, status, priority, estimatedValue, currency, notes,
+      source, status, priority, estimatedValue, currency, interestedProduct, notes,
       assignedToId: explicitAssigneeId,
     } = req.body;
 
@@ -140,6 +140,7 @@ exports.createLead = async (req, res, next) => {
         priority: priority || 'MEDIUM',
         estimatedValue: estimatedValue ? parseFloat(estimatedValue) : null,
         currency: currency || 'USD',
+        interestedProduct,
         notes,
         assignedToId: assignee?.id ?? null,
         createdById: req.user.id,
@@ -178,7 +179,7 @@ exports.updateLead = async (req, res, next) => {
 
     const {
       firstName, lastName, email, phone, company, jobTitle,
-      source, status, priority, estimatedValue, currency, notes, assignedToId,
+      source, status, priority, estimatedValue, currency, interestedProduct, notes, assignedToId,
     } = req.body;
 
     const lead = await prisma.lead.update({
@@ -195,6 +196,7 @@ exports.updateLead = async (req, res, next) => {
         priority:       priority       ?? existing.priority,
         estimatedValue: estimatedValue !== undefined ? parseFloat(estimatedValue) : existing.estimatedValue,
         currency:       currency       ?? existing.currency,
+        interestedProduct: interestedProduct !== undefined ? interestedProduct : existing.interestedProduct,
         notes:          notes          ?? existing.notes,
         assignedToId:   assignedToId   !== undefined ? assignedToId : existing.assignedToId,
       },
