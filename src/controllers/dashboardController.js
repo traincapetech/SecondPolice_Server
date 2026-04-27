@@ -6,16 +6,13 @@ const getDashboardStats = async (req, res, next) => {
     const tenantId = req.user.tenantId;
 
     const [
-      totalCustomers,
       totalDeals,
       wonDeals,
       revenueAgg,
       dealsByStage,
-      recentCustomers,
+      rawCustomers,
+      rawLeads,
     ] = await Promise.all([
-      // Total customers
-      prisma.customer.count({ where: { tenantId } }),
-
       // Total active deals (not lost)
       prisma.deal.count({ where: { tenantId, NOT: { stage: 'LOST' } } }),
 
@@ -36,14 +33,50 @@ const getDashboardStats = async (req, res, next) => {
         _sum: { value: true },
       }),
 
-      // Recent 5 customers
+      // Fetch all customers for unified count/recent
       prisma.customer.findMany({
         where: { tenantId },
         orderBy: { createdAt: 'desc' },
-        take: 5,
-        select: { id: true, name: true, email: true, status: true, createdAt: true },
       }),
+
+      // Fetch leads for unified count/recent
+      prisma.lead.findMany({
+        where: req.user.role !== 'ADMIN' 
+          ? { tenantId, OR: [{ createdById: req.user.id }, { assignedToId: req.user.id }] }
+          : { tenantId },
+        orderBy: { createdAt: 'desc' },
+      })
     ]);
+
+    const uniqueMap = new Map();
+    rawCustomers.forEach(c => uniqueMap.set(c.email?.toLowerCase() || c.name.toLowerCase(), c));
+    rawLeads.forEach(l => {
+      const key = l.email?.toLowerCase() || `${l.firstName} ${l.lastName || ''}`.trim().toLowerCase();
+      if (!uniqueMap.has(key)) {
+        uniqueMap.set(key, {
+          id: l.id,
+          tenantId: l.tenantId,
+          name: `${l.firstName} ${l.lastName || ''}`.trim(),
+          email: l.email,
+          phone: l.phone,
+          status: l.status,
+          createdAt: l.createdAt,
+        });
+      } else {
+        const existing = uniqueMap.get(key);
+        existing.status = l.status;
+      }
+    });
+
+    const unifiedCustomers = Array.from(uniqueMap.values()).sort((a, b) => b.createdAt - a.createdAt);
+    const totalCustomers = unifiedCustomers.length;
+    const recentCustomers = unifiedCustomers.slice(0, 5).map(c => ({
+      id: c.id,
+      name: c.name,
+      email: c.email,
+      status: c.status,
+      createdAt: c.createdAt
+    }));
 
     res.status(200).json({
       status: 'success',
