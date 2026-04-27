@@ -74,6 +74,12 @@ model Customer {
   name       String
   email      String?
   phone      String?
+  address    String?
+  city       String?
+  state      String?
+  pinCode    String?
+  country    String?
+  gstin      String?
   status     String     @default("LEAD")
   createdAt  DateTime   @default(now())
   activities Activity[]
@@ -179,6 +185,13 @@ model Invoice {
   invoiceNo   String
   clientName  String
   clientEmail String?
+  clientPhone String?
+  clientAddress String?
+  clientCity  String?
+  clientState String?
+  clientPinCode String?
+  clientCountry String?
+  clientGstin String?
   amount      Float
   currency    String        @default("USD")
   taxRate     Float         @default(0)
@@ -221,6 +234,12 @@ model Lead {
   phone          String?
   company        String?
   jobTitle       String?
+  address        String?
+  city           String?
+  state          String?
+  pinCode        String?
+  country        String?
+  gstin          String?
 
   // Lead details
   source         LeadSource   @default(OTHER)

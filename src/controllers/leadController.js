@@ -40,6 +40,7 @@ const LEAD_SELECT = {
   id: true, tenantId: true,
   firstName: true, lastName: true, email: true, phone: true,
   company: true, jobTitle: true,
+  address: true, city: true, state: true, pinCode: true, country: true, gstin: true,
   source: true, status: true, priority: true,
   estimatedValue: true, currency: true, interestedProduct: true, notes: true,
   createdAt: true, updatedAt: true,
@@ -111,6 +112,7 @@ exports.createLead = async (req, res, next) => {
   try {
     const {
       firstName, lastName, email, phone, company, jobTitle,
+      address, city, state, pinCode, country, gstin,
       source, status, priority, estimatedValue, currency, interestedProduct, notes,
       assignedToId: explicitAssigneeId,
     } = req.body;
@@ -135,6 +137,7 @@ exports.createLead = async (req, res, next) => {
         firstName, lastName,
         email: email ? email.toLowerCase().trim() : null,
         phone, company, jobTitle,
+        address, city, state, pinCode, country, gstin,
         source: source || 'OTHER',
         status: status || 'NEW',
         priority: priority || 'MEDIUM',
@@ -179,6 +182,7 @@ exports.updateLead = async (req, res, next) => {
 
     const {
       firstName, lastName, email, phone, company, jobTitle,
+      address, city, state, pinCode, country, gstin,
       source, status, priority, estimatedValue, currency, interestedProduct, notes, assignedToId,
     } = req.body;
 
@@ -191,6 +195,12 @@ exports.updateLead = async (req, res, next) => {
         phone:          phone          ?? existing.phone,
         company:        company        ?? existing.company,
         jobTitle:       jobTitle       ?? existing.jobTitle,
+        address:        address        ?? existing.address,
+        city:           city           ?? existing.city,
+        state:          state          ?? existing.state,
+        pinCode:        pinCode        ?? existing.pinCode,
+        country:        country        ?? existing.country,
+        gstin:          gstin          ?? existing.gstin,
         source:         source         ?? existing.source,
         status:         status         ?? existing.status,
         priority:       priority       ?? existing.priority,

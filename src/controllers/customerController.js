@@ -38,6 +38,12 @@ const getCustomers = async (req, res, next) => {
           name: `${l.firstName} ${l.lastName || ''}`.trim(),
           email: l.email,
           phone: l.phone,
+          address: l.address,
+          city: l.city,
+          state: l.state,
+          pinCode: l.pinCode,
+          country: l.country,
+          gstin: l.gstin,
           status: l.status,
           createdAt: l.createdAt,
           _isOriginallyLead: true // Important for update/delete routing
@@ -64,7 +70,7 @@ const getCustomers = async (req, res, next) => {
 // POST /api/customers - Create a new customer
 const createCustomer = async (req, res, next) => {
   try {
-    const { name, phone, status } = req.body;
+    const { name, phone, status, address, city, state, pinCode, country, gstin } = req.body;
     const email = req.body.email ? req.body.email.toLowerCase().trim() : null;
     if (!name) return next(new AppError('Customer name is required.', 400));
 
@@ -74,6 +80,12 @@ const createCustomer = async (req, res, next) => {
         name,
         email: email || null,
         phone: phone || null,
+        address: address || null,
+        city: city || null,
+        state: state || null,
+        pinCode: pinCode || null,
+        country: country || null,
+        gstin: gstin || null,
         status: status || 'LEAD',
       },
     });
@@ -88,7 +100,7 @@ const createCustomer = async (req, res, next) => {
 const updateCustomer = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { name, phone, status } = req.body;
+    const { name, phone, status, address, city, state, pinCode, country, gstin } = req.body;
     const email = req.body.email != null ? req.body.email.toLowerCase().trim() : undefined;
 
     // Check if it's a real customer
@@ -99,7 +111,7 @@ const updateCustomer = async (req, res, next) => {
     if (existing) {
       const customer = await prisma.customer.update({
         where: { id },
-        data: { name, email, phone, status },
+        data: { name, email, phone, status, address, city, state, pinCode, country, gstin },
       });
       return res.status(200).json({ status: 'success', data: { customer } });
     }
@@ -121,7 +133,7 @@ const updateCustomer = async (req, res, next) => {
 
       const lead = await prisma.lead.update({
         where: { id },
-        data: { firstName, lastName, email: email != null ? email : undefined, phone, status }
+        data: { firstName, lastName, email: email != null ? email : undefined, phone, status, address, city, state, pinCode, country, gstin }
       });
       return res.status(200).json({ status: 'success', data: { customer: lead } });
     }

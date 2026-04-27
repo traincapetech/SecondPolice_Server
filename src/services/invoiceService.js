@@ -25,16 +25,30 @@ async function createInvoiceFromDeal(deal, tenant) {
   // Try to get client details from the linked Lead
   let clientName = deal.title;
   let clientEmail = null;
+  let clientPhone = null;
+  let clientAddress = null;
+  let clientCity = null;
+  let clientState = null;
+  let clientPinCode = null;
+  let clientCountry = null;
+  let clientGstin = null;
 
   if (deal.leadId) {
     const lead = await prisma.lead.findUnique({
       where: { id: deal.leadId },
-      select: { firstName: true, lastName: true, email: true, company: true },
+      select: { firstName: true, lastName: true, email: true, company: true, phone: true, address: true, city: true, state: true, pinCode: true, country: true, gstin: true },
     });
     if (lead) {
       clientName = `${lead.firstName}${lead.lastName ? ' ' + lead.lastName : ''}`;
       if (lead.company) clientName += ` (${lead.company})`;
       clientEmail = lead.email || null;
+      clientPhone = lead.phone || null;
+      clientAddress = lead.address || null;
+      clientCity = lead.city || null;
+      clientState = lead.state || null;
+      clientPinCode = lead.pinCode || null;
+      clientCountry = lead.country || null;
+      clientGstin = lead.gstin || null;
     }
   }
 
@@ -56,6 +70,13 @@ async function createInvoiceFromDeal(deal, tenant) {
       invoiceNo,
       clientName,
       clientEmail,
+      clientPhone,
+      clientAddress,
+      clientCity,
+      clientState,
+      clientPinCode,
+      clientCountry,
+      clientGstin,
       amount,
       currency:    deal.currency || 'USD',
       taxRate,
