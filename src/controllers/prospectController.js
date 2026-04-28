@@ -1,5 +1,6 @@
 const prisma = require('../lib/prisma');
 const AppError = require('../utils/appError');
+const { notifyAdmins } = require('../utils/notifyAdmins');
 
 const PROSPECT_SELECT = {
   id: true,
@@ -148,6 +149,16 @@ exports.createProspect = async (req, res, next) => {
       status: 'success',
       data: { prospect }
     });
+
+    // Notify admins — #15 New prospect created
+    notifyAdmins({
+      tenantId: req.user.tenantId,
+      excludeId: req.user.role === 'ADMIN' ? req.user.id : undefined,
+      type: 'PROSPECT_CREATED',
+      title: '🔍 New Prospect Added',
+      body: `${req.user.name} added a new prospect: ${name}`,
+      linkUrl: '/prospects',
+    }).catch(console.error);
   } catch (err) {
     next(err);
   }
@@ -214,6 +225,18 @@ exports.updateProspect = async (req, res, next) => {
       status: 'success',
       data: { prospect: updated }
     });
+
+    // Notify admins — #16 Prospect converted
+    if (status === 'CONVERTED' && existing.status !== 'CONVERTED') {
+      notifyAdmins({
+        tenantId: req.user.tenantId,
+        excludeId: req.user.role === 'ADMIN' ? req.user.id : undefined,
+        type: 'PROSPECT_CONVERTED',
+        title: '🎉 Prospect Converted',
+        body: `${req.user.name} converted a prospect to a lead`,
+        linkUrl: '/prospects',
+      }).catch(console.error);
+    }
   } catch (err) {
     next(err);
   }

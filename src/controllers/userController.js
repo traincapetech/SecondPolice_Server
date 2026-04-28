@@ -3,6 +3,7 @@ const userService = require('../services/userService');
 const { addEmployeeSchema } = require('../schemas/userSchema');
 const AppError = require('../utils/appError');
 const prisma = require('../lib/prisma');
+const { notifyAdmins } = require('../utils/notifyAdmins');
 
 // POST /api/users/add-employee (Admin only)
 const addEmployee = async (req, res, next) => {
@@ -17,6 +18,16 @@ const addEmployee = async (req, res, next) => {
       message: 'Employee successfully added to workspace.',
       data: { user: { id: user.id, name: user.name, email: user.email, role: user.role, workspaceId: user.workspaceId, companyName: user.companyName } },
     });
+
+    // Notify admins — #12 New team member joined
+    notifyAdmins({
+      tenantId: req.user.tenantId,
+      excludeId: req.user.id,
+      type: 'TEAM_MEMBER_ADDED',
+      title: '👥 New Team Member Added',
+      body: `${req.user.name} added ${user.name} (${user.email}) to the workspace`,
+      linkUrl: '/team',
+    }).catch(console.error);
   } catch (err) {
     next(err);
   }
@@ -33,6 +44,16 @@ const deleteEmployee = async (req, res, next) => {
     
     await prisma.user.delete({ where: { id: victim.id } });
     res.status(204).send();
+
+    // Notify admins — #13 Team member removed
+    notifyAdmins({
+      tenantId: req.user.tenantId,
+      excludeId: req.user.id,
+      type: 'TEAM_MEMBER_REMOVED',
+      title: '🚪 Team Member Removed',
+      body: `${req.user.name} removed ${victim.name} (${victim.email}) from the workspace`,
+      linkUrl: '/team',
+    }).catch(console.error);
   } catch (err) {
     next(err);
   }

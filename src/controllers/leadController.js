@@ -1,6 +1,7 @@
 const prisma = require('../lib/prisma');
 const AppError = require('../utils/appError');
 const { createNotification } = require('../services/notificationService');
+const { notifyAdmins } = require('../utils/notifyAdmins');
 
 /**
  * Resolves which users in this tenant are "sales people" —
@@ -153,6 +154,16 @@ exports.createLead = async (req, res, next) => {
 
     res.status(201).json({ status: 'success', data: { lead } });
 
+    // Notify admins — #1 New lead created
+    notifyAdmins({
+      tenantId: req.user.tenantId,
+      excludeId: req.user.role === 'ADMIN' ? req.user.id : undefined,
+      type: 'LEAD_CREATED',
+      title: '🎯 New Lead Added',
+      body: `${req.user.name} added a new lead: ${lead.firstName}${lead.lastName ? ' ' + lead.lastName : ''}${lead.company ? ' (' + lead.company + ')' : ''}`,
+      linkUrl: '/leads',
+    }).catch(console.error);
+
     // Fire assignment notification (non-blocking)
     if (assignee) {
       createNotification({
@@ -215,6 +226,17 @@ exports.updateLead = async (req, res, next) => {
 
     // --- AUTO-CONVERSION WORKFLOW ---
     if (status === 'CONVERTED' && existing.status !== 'CONVERTED') {
+
+      // Notify admins — #2 Lead converted
+      notifyAdmins({
+        tenantId: req.user.tenantId,
+        excludeId: req.user.role === 'ADMIN' ? req.user.id : undefined,
+        type: 'LEAD_CONVERTED',
+        title: '✅ Lead Converted',
+        body: `${lead.firstName}${lead.lastName ? ' ' + lead.lastName : ''} has been converted to a deal by ${req.user.name}`,
+        linkUrl: '/leads',
+      }).catch(console.error);
+
       try {
         // Generate Deal if there's projected value AND no deal already linked
         if (lead.estimatedValue && lead.estimatedValue > 0) {
@@ -285,6 +307,36 @@ exports.updateLead = async (req, res, next) => {
 
 
     res.status(200).json({ status: 'success', data: { lead } });
+
+    // Notify admins — #3 Lead marked lost
+    if (status === 'LOST' && existing.status !== 'LOST') {
+      notifyAdmins({
+        tenantId: req.user.tenantId,
+        excludeId: req.user.role === 'ADMIN' ? req.user.id : undefined,
+        type: 'LEAD_LOST',
+        title: '❌ Lead Marked Lost',
+        body: `${lead.firstName}${lead.lastName ? ' ' + lead.lastName : ''}${lead.company ? ' (' + lead.company + ')' : ''} was marked as lost by ${req.user.name}`,
+        linkUrl: '/leads',
+      }).catch(console.error);
+    }
+
+    // Notify admins — Lead reverted from CONVERTED or LOST back to an earlier status
+    const terminalStatuses = ['CONVERTED', 'LOST'];
+    const activeStatuses   = ['NEW', 'CONTACTED', 'QUALIFIED', 'UNQUALIFIED'];
+    if (
+      status &&
+      terminalStatuses.includes(existing.status) &&
+      activeStatuses.includes(status)
+    ) {
+      notifyAdmins({
+        tenantId: req.user.tenantId,
+        excludeId: req.user.role === 'ADMIN' ? req.user.id : undefined,
+        type: 'LEAD_REOPENED',
+        title: '↩️ Lead Status Reverted',
+        body: `${lead.firstName}${lead.lastName ? ' ' + lead.lastName : ''}${lead.company ? ' (' + lead.company + ')' : ''} was moved from ${existing.status} → ${status} by ${req.user.name}`,
+        linkUrl: '/leads',
+      }).catch(console.error);
+    }
 
     // Fire re-assignment notification if assignee changed (non-blocking)
     const newAssigneeId = assignedToId !== undefined ? assignedToId : existing.assignedToId;

@@ -63,6 +63,7 @@ model User {
   assignedLeads Lead[]        @relation("LeadAssignee")
   createdLeads  Lead[]        @relation("LeadCreator")
   createdProspects ProspectMeta[] @relation("ProspectCreator")
+  pushSubscriptions PushSubscription[]
 
   @@index([tenantId])
 }
@@ -378,4 +379,17 @@ model Product {
   updatedAt   DateTime @updatedAt
 
   @@index([tenantId])
+}
+
+// Stores browser Web Push subscriptions (one per browser/device per user)
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique   // browser push service URL — unique per device
+  p256dh    String             // encryption key
+  auth      String             // auth secret
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }

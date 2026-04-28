@@ -1,6 +1,7 @@
 const prisma = require('../lib/prisma');
 const AppError = require('../utils/appError');
 const { createInvoiceFromDeal } = require('../services/invoiceService');
+const { notifyAdmins } = require('../utils/notifyAdmins');
 
 const VALID_STAGES = ['LEAD', 'QUALIFIED', 'PROPOSAL', 'NEGOTIATION', 'WON', 'LOST'];
 
@@ -59,6 +60,16 @@ const createDeal = async (req, res, next) => {
     });
 
     res.status(201).json({ status: 'success', data: { deal } });
+
+    // Notify admins — #4 New deal created
+    notifyAdmins({
+      tenantId: req.user.tenantId,
+      excludeId: req.user.role === 'ADMIN' ? req.user.id : undefined,
+      type: 'DEAL_CREATED',
+      title: '💼 New Deal Created',
+      body: `${req.user.name} created a new deal: "${deal.title}"`,
+      linkUrl: '/deals',
+    }).catch(console.error);
   } catch (err) {
     next(err);
   }
@@ -104,6 +115,24 @@ const updateDeal = async (req, res, next) => {
     });
 
     res.status(200).json({ status: 'success', data: { deal } });
+
+    // Notify admins on stage changes (#5 WON, #6 LOST, #7 stage changed)
+    if (stage && stage !== existing.stage) {
+      const isWon  = stage === 'WON';
+      const isLost = stage === 'LOST';
+      notifyAdmins({
+        tenantId: req.user.tenantId,
+        excludeId: req.user.role === 'ADMIN' ? req.user.id : undefined,
+        type: isWon ? 'DEAL_WON' : isLost ? 'DEAL_LOST' : 'DEAL_STAGE_CHANGED',
+        title: isWon  ? '🏆 Deal Won!'       :
+               isLost ? '❌ Deal Lost'        :
+                        '🔄 Deal Stage Updated',
+        body: isWon  ? `${req.user.name} closed "${deal.title}" as WON` :
+              isLost ? `${req.user.name} marked "${deal.title}" as LOST` :
+                       `${req.user.name} moved "${deal.title}" to ${stage}`,
+        linkUrl: '/deals',
+      }).catch(console.error);
+    }
 
     // Auto-create DRAFT invoice when deal is moved to WON for the first time
     if (stage === 'WON' && existing.stage !== 'WON') {

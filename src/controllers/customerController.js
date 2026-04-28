@@ -1,5 +1,6 @@
 const prisma = require('../lib/prisma');
 const AppError = require('../utils/appError');
+const { notifyAdmins } = require('../utils/notifyAdmins');
 
 // GET /api/customers - List all customers AND leads
 const getCustomers = async (req, res, next) => {
@@ -91,6 +92,16 @@ const createCustomer = async (req, res, next) => {
     });
 
     res.status(201).json({ status: 'success', data: { customer } });
+
+    // Notify admins — #11 New customer added
+    notifyAdmins({
+      tenantId: req.user.tenantId,
+      excludeId: req.user.role === 'ADMIN' ? req.user.id : undefined,
+      type: 'CUSTOMER_CREATED',
+      title: '👤 New Customer Added',
+      body: `${req.user.name} added a new customer: ${name}`,
+      linkUrl: '/customers',
+    }).catch(console.error);
   } catch (err) {
     next(err);
   }

@@ -1,6 +1,7 @@
 const prisma = require('../lib/prisma');
 const AppError = require('../utils/appError');
 const { createNotification } = require('../services/notificationService');
+const { notifyAdmins } = require('../utils/notifyAdmins');
 
 const VALID_TYPES = ['CALL', 'EMAIL', 'MEETING', 'TASK'];
 
@@ -131,6 +132,18 @@ const updateActivity = async (req, res, next) => {
     });
 
     res.status(200).json({ status: 'success', data: { activity } });
+
+    // Notify admins — #14 Activity completed
+    if (completed === true && !existing.completedAt) {
+      notifyAdmins({
+        tenantId: req.user.tenantId,
+        excludeId: req.user.role === 'ADMIN' ? req.user.id : undefined,
+        type: 'ACTIVITY_COMPLETED',
+        title: '✅ Activity Completed',
+        body: `${req.user.name} completed: "${activity.title}"`,
+        linkUrl: '/activities',
+      }).catch(console.error);
+    }
 
     // Fire assignment notification if assignment changed
     if (assignedToId && assignedToId !== existing.userId) {

@@ -2,6 +2,7 @@ const prisma = require('../lib/prisma');
 const AppError = require('../utils/appError');
 const { generateInvoicePDF } = require('../utils/pdfGenerator');
 const { generateAndSendInvoice } = require('../services/invoiceService');
+const { notifyAdmins } = require('../utils/notifyAdmins');
 
 const INVOICE_INCLUDE = {
   deal: { select: { id: true, title: true, stage: true } },
@@ -86,6 +87,16 @@ exports.sendInvoice = async (req, res, next) => {
     const updated = await generateAndSendInvoice(invoice.id, tenant);
 
     res.status(200).json({ status: 'success', message: 'Invoice sent successfully.', data: { invoice: updated } });
+
+    // Notify admins — #8 Invoice sent
+    notifyAdmins({
+      tenantId: req.user.tenantId,
+      excludeId: req.user.role === 'ADMIN' ? req.user.id : undefined,
+      type: 'INVOICE_SENT',
+      title: '📧 Invoice Sent',
+      body: `Invoice ${invoice.invoiceNo} was sent to ${invoice.clientEmail || invoice.clientName} by ${req.user.name}`,
+      linkUrl: '/invoices',
+    }).catch(console.error);
   } catch (err) { next(err); }
 };
 
@@ -117,6 +128,18 @@ exports.updateInvoice = async (req, res, next) => {
     });
 
     res.status(200).json({ status: 'success', data: { invoice } });
+
+    // Notify admins — #9 Invoice marked PAID
+    if (status === 'PAID' && existing.status !== 'PAID') {
+      notifyAdmins({
+        tenantId: req.user.tenantId,
+        excludeId: req.user.role === 'ADMIN' ? req.user.id : undefined,
+        type: 'INVOICE_PAID',
+        title: '💰 Invoice Paid',
+        body: `Invoice ${existing.invoiceNo} (${existing.clientName}) has been marked as paid`,
+        linkUrl: '/invoices',
+      }).catch(console.error);
+    }
   } catch (err) { next(err); }
 };
 
