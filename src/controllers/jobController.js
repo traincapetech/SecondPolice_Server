@@ -56,7 +56,93 @@ const runScheduledEmails = async (req, res) => {
   );
 
   console.log(`[ScheduledEmail] Processed ${due.length} — sent: ${sent}, failed: ${failed}`);
-  res.json({ status: 'success', processed: due.length, sent, failed });
+
+  // ── Process Email Campaigns ────────────────────────────────────────────────
+  let campaignProcessed = 0;
+  let campaignSent = 0;
+  let campaignFailed = 0;
+
+  // 1. Move due SCHEDULED campaigns to SENDING
+  await prisma.campaign.updateMany({
+    where: {
+      status: 'SCHEDULED',
+      scheduledAt: { lte: now }
+    },
+    data: { status: 'SENDING' }
+  });
+
+  // 2. Find active SENDING campaigns
+  const activeCampaigns = await prisma.campaign.findMany({
+    where: { status: 'SENDING' },
+    take: 5 // process up to 5 campaigns at a time
+  });
+
+  for (const campaign of activeCampaigns) {
+    // Get up to 20 pending recipients per campaign
+    const recipients = await prisma.campaignRecipient.findMany({
+      where: { campaignId: campaign.id, status: 'PENDING' },
+      take: 20
+    });
+
+    if (recipients.length === 0) {
+      // Campaign is done
+      await prisma.campaign.update({
+        where: { id: campaign.id },
+        data: { status: 'SENT' }
+      });
+      continue;
+    }
+
+    let batchSent = 0;
+    let batchFailed = 0;
+
+    await Promise.all(
+      recipients.map(async (recipient) => {
+        try {
+          // Replace placeholders like {{name}}
+          const htmlBody = campaign.htmlBody.replace(/\{\{name\}\}/gi, recipient.name || 'there');
+          
+          await sendEmail(recipient.email, recipient.name || recipient.email, campaign.subject, htmlBody);
+
+          await prisma.campaignRecipient.update({
+            where: { id: recipient.id },
+            data: { status: 'SENT', sentAt: new Date() }
+          });
+          batchSent++;
+        } catch (err) {
+          console.error(`[Campaign] Failed to send to ${recipient.email}:`, err.message);
+          await prisma.campaignRecipient.update({
+            where: { id: recipient.id },
+            data: { status: 'FAILED', errorMsg: err.message }
+          });
+          batchFailed++;
+        }
+      })
+    );
+
+    // Update campaign stats
+    await prisma.campaign.update({
+      where: { id: campaign.id },
+      data: {
+        totalSent: { increment: batchSent },
+        totalFailed: { increment: batchFailed }
+      }
+    });
+
+    campaignProcessed += recipients.length;
+    campaignSent += batchSent;
+    campaignFailed += batchFailed;
+  }
+
+  if (campaignProcessed > 0) {
+    console.log(`[Campaigns] Processed ${campaignProcessed} — sent: ${campaignSent}, failed: ${campaignFailed}`);
+  }
+
+  res.json({ 
+    status: 'success', 
+    scheduledEmails: { processed: due.length, sent, failed },
+    campaigns: { processed: campaignProcessed, sent: campaignSent, failed: campaignFailed }
+  });
 };
 
 module.exports = { runScheduledEmails };

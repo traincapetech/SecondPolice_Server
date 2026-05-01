@@ -20,6 +20,7 @@ const productRoutes       = require('./routes/productRoutes');
 const pushRoutes          = require('./routes/pushRoutes');
 const scheduledEmailRoutes = require('./routes/scheduledEmailRoutes');
 const jobRoutes            = require('./routes/jobRoutes');
+const campaignRoutes       = require('./routes/campaignRoutes');
 const AppError = require('./utils/appError');
 const globalErrorHandler = require('./middlewares/errorController');
 
@@ -63,6 +64,7 @@ app.use('/api/products',        productRoutes);
 app.use('/api/push',              pushRoutes);
 app.use('/api/scheduled-emails',  scheduledEmailRoutes);
 app.use('/api/jobs',              jobRoutes);
+app.use('/api/campaigns',         campaignRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
