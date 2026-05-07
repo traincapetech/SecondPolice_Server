@@ -28,32 +28,28 @@ const runScheduledEmails = async (req, res) => {
     take: 50, // safety cap — process max 50 at once
   });
 
-  if (due.length === 0) {
-    return res.json({ status: 'success', processed: 0, sent: 0, failed: 0 });
-  }
+  // No early return here, we still need to process campaigns!
 
   let sent = 0, failed = 0;
 
-  await Promise.all(
-    due.map(async (email) => {
-      try {
-        await sendEmail(email.to, email.toName || email.to, email.subject, email.htmlBody);
+  for (const email of due) {
+    try {
+      await sendEmail(email.to, email.toName || email.to, email.subject, email.htmlBody);
 
-        await prisma.scheduledEmail.update({
-          where: { id: email.id },
-          data:  { status: 'SENT', sentAt: new Date() },
-        });
-        sent++;
-      } catch (err) {
-        console.error(`[ScheduledEmail] Failed to send ${email.id}:`, err.message);
-        await prisma.scheduledEmail.update({
-          where: { id: email.id },
-          data:  { status: 'FAILED', errorMsg: err.message },
-        });
-        failed++;
-      }
-    })
-  );
+      await prisma.scheduledEmail.update({
+        where: { id: email.id },
+        data:  { status: 'SENT', sentAt: new Date() },
+      });
+      sent++;
+    } catch (err) {
+      console.error(`[ScheduledEmail] Failed to send ${email.id}:`, err.message);
+      await prisma.scheduledEmail.update({
+        where: { id: email.id },
+        data:  { status: 'FAILED', errorMsg: err.message },
+      });
+      failed++;
+    }
+  }
 
   console.log(`[ScheduledEmail] Processed ${due.length} — sent: ${sent}, failed: ${failed}`);
 
@@ -96,29 +92,27 @@ const runScheduledEmails = async (req, res) => {
     let batchSent = 0;
     let batchFailed = 0;
 
-    await Promise.all(
-      recipients.map(async (recipient) => {
-        try {
-          // Replace placeholders like {{name}}
-          const htmlBody = campaign.htmlBody.replace(/\{\{name\}\}/gi, recipient.name || 'there');
-          
-          await sendEmail(recipient.email, recipient.name || recipient.email, campaign.subject, htmlBody);
+    for (const recipient of recipients) {
+      try {
+        // Replace placeholders like {{name}}
+        const htmlBody = campaign.htmlBody.replace(/\{\{name\}\}/gi, recipient.name || 'there');
+        
+        await sendEmail(recipient.email, recipient.name || recipient.email, campaign.subject, htmlBody);
 
-          await prisma.campaignRecipient.update({
-            where: { id: recipient.id },
-            data: { status: 'SENT', sentAt: new Date() }
-          });
-          batchSent++;
-        } catch (err) {
-          console.error(`[Campaign] Failed to send to ${recipient.email}:`, err.message);
-          await prisma.campaignRecipient.update({
-            where: { id: recipient.id },
-            data: { status: 'FAILED', errorMsg: err.message }
-          });
-          batchFailed++;
-        }
-      })
-    );
+        await prisma.campaignRecipient.update({
+          where: { id: recipient.id },
+          data: { status: 'SENT', sentAt: new Date() }
+        });
+        batchSent++;
+      } catch (err) {
+        console.error(`[Campaign] Failed to send to ${recipient.email}:`, err.message);
+        await prisma.campaignRecipient.update({
+          where: { id: recipient.id },
+          data: { status: 'FAILED', errorMsg: err.message }
+        });
+        batchFailed++;
+      }
+    }
 
     // Update campaign stats
     await prisma.campaign.update({
@@ -128,6 +122,18 @@ const runScheduledEmails = async (req, res) => {
         totalFailed: { increment: batchFailed }
       }
     });
+
+    // Check if there are any remaining pending recipients. If not, mark campaign as SENT immediately.
+    const remaining = await prisma.campaignRecipient.count({
+      where: { campaignId: campaign.id, status: 'PENDING' }
+    });
+    
+    if (remaining === 0) {
+      await prisma.campaign.update({
+        where: { id: campaign.id },
+        data: { status: 'SENT' }
+      });
+    }
 
     campaignProcessed += recipients.length;
     campaignSent += batchSent;

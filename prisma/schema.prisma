@@ -454,6 +454,17 @@ model StandaloneInvoice {
   clientEmail   String?
   clientAddress String?
   
+  senderName             String?
+  senderEmail            String?
+  senderAddress          String?
+  senderPhone            String?
+  senderGstin            String?
+  senderPan              String?
+  senderBusinessCategory String?
+  logoUrl                String?
+
+  clientPhone   String?
+
   amount        Float
   currency      String   @default("INR")
   taxRate       Float    @default(0)
@@ -464,10 +475,13 @@ model StandaloneInvoice {
   items         Json     // Array of invoice items
   notes         String?
   
+  invoiceDate   DateTime @default(now())
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   @@index([toolUserId])
+}
+
 // Stores emails that should be delivered at a future scheduled time.
 // Picked up by POST /api/jobs/run-scheduled-emails every minute (via cron-job.org).
 model ScheduledEmail {

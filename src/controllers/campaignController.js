@@ -89,9 +89,8 @@ const updateCampaign = async (req, res, next) => {
       return next(new AppError('Campaign not found', 404));
     }
     
-    if (existing.status !== 'DRAFT' && status !== 'CANCELLED') {
-      return next(new AppError(`Cannot update campaign in ${existing.status} status`, 400));
-    }
+    // We now allow updating campaigns at any time (e.g. to reuse them as templates)
+    // Only status updates to SENDING/SCHEDULED/CANCELLED are restricted by UI logic.
 
     let scheduledDate = undefined;
     if (scheduledAt) {
@@ -159,9 +158,7 @@ const addRecipients = async (req, res, next) => {
     });
 
     if (!campaign) return next(new AppError('Campaign not found', 404));
-    if (campaign.status !== 'DRAFT') {
-      return next(new AppError('Can only add recipients to a DRAFT campaign', 400));
-    }
+    // Allowed at any time to add new recipients to existing templates
 
     // Filter out existing recipients by email to prevent duplicates in the same campaign
     const existingRecipients = await prisma.campaignRecipient.findMany({
@@ -208,14 +205,14 @@ const removeRecipient = async (req, res, next) => {
     });
 
     if (!campaign) return next(new AppError('Campaign not found', 404));
-    if (campaign.status !== 'DRAFT') {
-      return next(new AppError('Can only remove recipients from a DRAFT campaign', 400));
-    }
+    // Instead of DRAFT check, just ensure we only delete PENDING recipients
+    // so we don't accidentally delete historical SENT/FAILED data.
 
     await prisma.campaignRecipient.deleteMany({
       where: { 
         id: req.params.recipientId,
-        campaignId: campaign.id
+        campaignId: campaign.id,
+        status: 'PENDING'
       }
     });
 
@@ -236,9 +233,7 @@ const startCampaign = async (req, res, next) => {
     });
 
     if (!campaign) return next(new AppError('Campaign not found', 404));
-    if (campaign.status !== 'DRAFT') {
-      return next(new AppError('Can only start a DRAFT campaign', 400));
-    }
+    // We allow starting a campaign at any time (it will process any PENDING recipients)
 
     const recipientCount = await prisma.campaignRecipient.count({
       where: { campaignId: campaign.id }

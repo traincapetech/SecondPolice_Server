@@ -79,6 +79,7 @@ exports.getOrCreateSession = async (req, res) => {
 exports.generateInvoice = async (req, res) => {
   try {
     const { sessionId, email, invoiceData } = req.body;
+    console.log('Generating invoice with data:', JSON.stringify(invoiceData, null, 2));
     
     // 1. Get or create user
     const user = await getToolUser(sessionId, email);
@@ -119,15 +120,8 @@ exports.generateInvoice = async (req, res) => {
       });
     }
 
-    // Limit logic for free templates: Max 2 free invoices
-    const FREE_LIMIT = 2;
-    if (!activePass && usage.usageCount >= FREE_LIMIT) {
-      return res.status(403).json({
-        success: false,
-        requiresPayment: true,
-        message: 'Free limit reached. Please purchase a pass or pay per invoice.'
-      });
-    }
+    // Unlimited free invoices for basic templates
+    // (Payment still required for premium templates)
 
     // 3. Save the invoice
     const newInvoice = await prisma.standaloneInvoice.create({
@@ -137,11 +131,21 @@ exports.generateInvoice = async (req, res) => {
         clientName: invoiceData.clientName,
         clientEmail: invoiceData.clientEmail,
         clientAddress: invoiceData.clientAddress,
+        clientPhone: invoiceData.clientPhone || null,
+        senderName: invoiceData.senderName,
+        senderEmail: invoiceData.senderEmail,
+        senderAddress: invoiceData.senderAddress,
+        senderPhone: invoiceData.senderPhone || null,
+        senderGstin: invoiceData.senderGstin || null,
+        senderPan: invoiceData.senderPan || null,
+        senderBusinessCategory: invoiceData.senderBusinessCategory || null,
+        logoUrl: invoiceData.logoUrl || null,
         amount: invoiceData.amount,
         currency: invoiceData.currency || 'INR',
         taxRate: invoiceData.taxRate || 0,
         taxAmount: invoiceData.taxAmount || 0,
         totalAmount: invoiceData.totalAmount,
+        invoiceDate: invoiceData.invoiceDate ? new Date(invoiceData.invoiceDate) : new Date(),
         dueDate: invoiceData.dueDate ? new Date(invoiceData.dueDate) : null,
         items: invoiceData.items || [],
         notes: invoiceData.notes,
@@ -161,8 +165,8 @@ exports.generateInvoice = async (req, res) => {
       hasActivePass: !!activePass
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, error: 'Server Error' });
+    console.error('Invoice generation error:', error);
+    res.status(500).json({ success: false, error: 'Server Error', details: error.message });
   }
 };
 
@@ -266,17 +270,28 @@ exports.downloadInvoice = async (req, res) => {
 
     if (!invoice) return res.status(404).json({ success: false, message: 'Invoice not found' });
 
-    // For standalone tools, we don't have a full Tenant object.
-    // We'll pass a basic placeholder or the ToolUser's info.
+    // Build the full tenant-like object so pdfGenerator renders all GST fields.
     const tenantPlaceholder = {
-      name: 'Second Police Standalone',
+      name: invoice.senderName || 'Your Company',
       companyProfile: {
-        address: 'Standalone Tool Service',
-        companyEmail: 'support@secondpolice.com'
+        businessCategory: invoice.senderBusinessCategory || null,
+        address:          invoice.senderAddress          || null,
+        gstin:            invoice.senderGstin            || null,
+        pan:              invoice.senderPan              || null,
+        companyEmail:     invoice.senderEmail            || null,
+        companyPhone:     invoice.senderPhone            || null,
+        logoUrl:          invoice.logoUrl                || null,
       }
     };
 
-    const pdfBuffer = await generateInvoicePDF(invoice, tenantPlaceholder);
+    // Attach dates so pdfGenerator can render them correctly
+    const invoiceForPdf = { 
+      ...invoice, 
+      clientPhone: invoice.clientPhone || null,
+      createdAt: invoice.invoiceDate || invoice.createdAt // Use specified invoiceDate as primary
+    };
+
+    const pdfBuffer = await generateInvoicePDF(invoiceForPdf, tenantPlaceholder);
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=invoice-${invoice.invoiceNo}.pdf`);

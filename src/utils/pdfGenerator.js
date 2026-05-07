@@ -34,8 +34,12 @@ function generateInvoicePDF(invoice, tenant) {
 
     const fmt = (n) =>
       new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
-    const fmtDate = (d) =>
-      new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'numeric', year: 'numeric' });
+    const fmtDate = (d) => {
+      if (!d) return '—';
+      const date = new Date(d);
+      if (isNaN(date.getTime())) return '—';
+      return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'numeric', year: 'numeric' });
+    };
 
     // ── 1. HEADER  ──────────────────────────────────────────────────────────
     let y = 40;
@@ -55,58 +59,86 @@ function generateInvoicePDF(invoice, tenant) {
     };
     metaLabel('Invoice No:',   invoice.invoiceNo,          0);
     metaLabel('Invoice Date:', fmtDate(invoice.createdAt), 1);
-    metaLabel('Due Date:',     fmtDate(invoice.dueDate),   2);
+    if (invoice.dueDate) {
+      metaLabel('Due Date:', fmtDate(invoice.dueDate), 2);
+    }
 
-    // Status pill (top right)
-    const statusColors = {
-      DRAFT: '#64748B', SENT: '#3B82F6', PAID: '#10B981',
-      OVERDUE: '#EF4444', CANCELLED: '#94A3B8',
-    };
-    const pillColor = statusColors[invoice.status] || '#64748B';
-    const pillW = 72, pillH = 22;
-    const pillX = PW - PAD - pillW;
-    doc.roundedRect(pillX, 40, pillW, pillH, 11).fill(pillColor);
-    doc.fontSize(8).fillColor(WHITE).font('Helvetica-Bold')
-       .text(invoice.status, pillX, 47, { width: pillW, align: 'center' });
+    // Status pill (top right) — only for CRM invoices that have a status
+    if (invoice.status) {
+      const statusColors = {
+        DRAFT: '#64748B', SENT: '#3B82F6', PAID: '#10B981',
+        OVERDUE: '#EF4444', CANCELLED: '#94A3B8',
+      };
+      const pillColor = statusColors[invoice.status] || '#64748B';
+      const pillW = 72, pillH = 22;
+      const pillX = PW - PAD - pillW;
+      doc.roundedRect(pillX, 40, pillW, pillH, 11).fill(pillColor);
+      doc.fontSize(8).fillColor(WHITE).font('Helvetica-Bold')
+         .text(invoice.status, pillX, 47, { width: pillW, align: 'center' });
+    }
 
-    // Company logo area (top right, below pill)
-    const logoBoxW = 100, logoBoxH = 44;
+    // Company logo (top right)
+    const logoBoxW = 150, logoBoxH = 65;
     const logoBoxX = PW - PAD - logoBoxW;
-    const logoBoxY = 40 + pillH + 8;
-    doc.rect(logoBoxX, logoBoxY, logoBoxW, logoBoxH)
-       .lineWidth(0.5).strokeColor(BORDER).stroke();
-    doc.fontSize(7.5).fillColor(MUTED).font('Helvetica')
-       .text(companyName, logoBoxX + 4, logoBoxY + 16, { width: logoBoxW - 8, align: 'center' });
+    const logoBoxY = invoice.status ? (40 + 22 + 8) : 40;
+    
+    // No border rect anymore for cleaner look
+    
+    let logoLoaded = false;
+    if (cp.logoUrl) {
+      try {
+        // Render logo if path exists
+        doc.image(cp.logoUrl, logoBoxX, logoBoxY, { 
+          fit: [logoBoxW, logoBoxH],
+          align: 'right',
+          valign: 'top'
+        });
+        logoLoaded = true;
+      } catch (e) {
+        console.error('Failed to load logo in PDF generator:', e.message);
+      }
+    }
+
+    if (!logoLoaded) {
+      doc.fontSize(10).fillColor(MUTED).font('Helvetica-Bold')
+         .text(companyName, logoBoxX, logoBoxY + 10, { width: logoBoxW, align: 'right' });
+    }
 
     // Thin divider below header
     y = 130;
     doc.moveTo(PAD, y).lineTo(PW - PAD, y).strokeColor(BORDER).lineWidth(0.5).stroke();
     y += 18;
 
-    // ── 2. FROM / BILLED TO boxes ───────────────────────────────────────────
-    const BOX_W  = CW * 0.46;
-    const BOX_X1 = PAD;
-    const BOX_X2 = PAD + CW - BOX_W;
-    const BOX_IP = 12;    // inner padding
-    const BOX_Y  = y;
-
-    // Measure FROM content height
-    const fromAddress  = [cp.address].filter(Boolean);
+    // Measure FROM content height more accurately
+    const fromLines = [];
+    if (cp.businessCategory) fromLines.push({ text: cp.businessCategory, size: 8.5 });
+    const addrParts = [cp.address].filter(Boolean);
     const fromCityLine = [cp.city, cp.state].filter(Boolean).join(', ');
-    if (fromCityLine) fromAddress.push(fromCityLine);
-    if (cp.pinCode)   fromAddress.push(cp.pinCode);
-    if (cp.country)   fromAddress.push(cp.country);
+    if (fromCityLine) addrParts.push(fromCityLine);
+    if (cp.pinCode) addrParts.push(cp.pinCode);
+    if (cp.country) addrParts.push(cp.country);
+    addrParts.forEach(l => fromLines.push({ text: l, size: 8.5 }));
 
     const fromExtras = [
-      cp.gstin        ? `GSTIN: ${cp.gstin}`         : null,
-      cp.pan          ? `PAN: ${cp.pan}`              : null,
-      cp.companyEmail ? `Email: ${cp.companyEmail}`   : null,
-      cp.companyPhone ? `Phone: ${cp.companyPhone}`   : null,
+      cp.gstin        ? `GSTIN: ${cp.gstin}`       : null,
+      cp.pan          ? `PAN: ${cp.pan}`            : null,
+      cp.companyEmail ? `Email: ${cp.companyEmail}` : null,
+      cp.companyPhone ? `Phone: ${cp.companyPhone}` : null,
     ].filter(Boolean);
+    fromExtras.forEach(l => fromLines.push({ text: l, size: 8 }));
 
-    // Calculate box height dynamically
-    const fromRows  = 2 + fromAddress.length + (cp.businessCategory ? 1 : 0) + (fromExtras.length > 0 ? 1 : 0) + fromExtras.length;
-    const BOX_H     = Math.max(140, BOX_IP + fromRows * 13 + BOX_IP);
+    // Dynamically size box based on estimated line count
+    const BOX_W  = CW * 0.46;
+    const BOX_IP = 12;
+    // Account for: title (15px) + category gap(5) + each line (13px) + extras gap (5)
+    const estimatedH = BOX_IP + 15 + (cp.businessCategory ? 13 : 0) + 5
+      + addrParts.length * 13
+      + (fromExtras.length > 0 ? 5 + fromExtras.length * 13 : 0)
+      + BOX_IP;
+    const BOX_H = Math.max(150, estimatedH);
+    const BOX_X1 = PAD;
+    const BOX_X2 = PAD + CW - BOX_W;
+    const BOX_Y  = y;
 
     // ── FROM box ──
     doc.rect(BOX_X1, BOX_Y, BOX_W, BOX_H).fill(FROM_BG);
@@ -127,19 +159,21 @@ function generateInvoicePDF(invoice, tenant) {
     fy += 5; // small gap before address
 
     // Address lines — explicitly set MUTED before each line to prevent color leakage
-    fromAddress.forEach(line => {
+    addrParts.forEach(line => {
+      const h = doc.heightOfString(line, { width: BOX_W - BOX_IP * 2 });
       doc.fontSize(8.5).fillColor(MUTED).font('Helvetica')
          .text(line, BOX_X1 + BOX_IP, fy, { width: BOX_W - BOX_IP * 2 });
-      fy += 12;
+      fy += h;
     });
 
     if (fromExtras.length > 0) fy += 5;
 
     // GSTIN / PAN / Email / Phone
     fromExtras.forEach(line => {
+      const h = doc.heightOfString(line, { width: BOX_W - BOX_IP * 2 });
       doc.fontSize(8).fillColor(MUTED).font('Helvetica')
          .text(line, BOX_X1 + BOX_IP, fy, { width: BOX_W - BOX_IP * 2 });
-      fy += 12;
+      fy += h;
     });
 
     // ── BILLED TO box ──
@@ -166,9 +200,10 @@ function generateInvoicePDF(invoice, tenant) {
     ].filter(Boolean);
 
     billLines.forEach(line => {
+      const h = doc.heightOfString(line, { width: BOX_W - BOX_IP * 2 });
       doc.fontSize(8.5).fillColor(MUTED).font('Helvetica')
          .text(line, BOX_X2 + BOX_IP, by, { width: BOX_W - BOX_IP * 2 });
-      by += 12;
+      by += h;
     });
 
     if (billLines.length > 0) by += 4;
@@ -211,9 +246,22 @@ function generateInvoicePDF(invoice, tenant) {
     y += TH;
 
     // Resolve line items
-    let lineItems = [];
+    let rawItems = [];
     if (invoice.lineItems && Array.isArray(invoice.lineItems) && invoice.lineItems.length > 0) {
-      lineItems = invoice.lineItems;
+      rawItems = invoice.lineItems;
+    } else if (invoice.items && Array.isArray(invoice.items) && invoice.items.length > 0) {
+      rawItems = invoice.items;
+    }
+
+    let lineItems = [];
+    if (rawItems.length > 0) {
+      lineItems = rawItems.map(item => ({
+        description: item.description || item.desc || '—',
+        unitPrice:   item.unitPrice   || item.price || 0,
+        qty:         item.qty         || 1,
+        gstAmount:   item.gstAmount   || 0,
+        total:       item.total       || (item.qty || 1) * (item.unitPrice || item.price || 0)
+      }));
     } else {
       const unitPrice = invoice.amount || 0;
       const taxRate   = invoice.taxRate || 0;
@@ -237,9 +285,13 @@ function generateInvoicePDF(invoice, tenant) {
       const tY = rowY + 11;
       doc.fontSize(9).fillColor(SLATE).font('Helvetica')
          .text(item.description || '—', C_DESC + 8, tY, { width: C_UP - C_DESC - 14 });
+      
+      // Calculate per-unit GST for display
+      const perUnitGst = item.qty > 0 ? (item.gstAmount / item.qty) : 0;
+      
       doc.fontSize(9).fillColor(MUTED).font('Helvetica')
          .text(fmt(item.unitPrice), C_UP,    tY, { width: C_GST   - C_UP   - 4, align: 'right' })
-         .text(fmt(item.gstAmount), C_GST,   tY, { width: C_QTY   - C_GST  - 4, align: 'right' })
+         .text(fmt(perUnitGst),     C_GST,   tY, { width: C_QTY   - C_GST  - 4, align: 'right' })
          .text(String(item.qty ?? 1), C_QTY, tY, { width: C_TOTAL - C_QTY  - 4, align: 'right' });
       doc.fontSize(9).fillColor(SLATE).font('Helvetica-Bold')
          .text(`Rs. ${fmt(item.total)}`, C_TOTAL, tY, { width: C_END - C_TOTAL - 4, align: 'right' });
