@@ -61,7 +61,7 @@ const authenticate = async (req, res, next) => {
 
 /**
  * Middleware factory to restrict access by Role
- * @param  {...string} roles - e.g. 'ADMIN', 'MANAGER'
+ * @param  {...string} roles - e.g. 'ADMIN', 'EMPLOYEE'
  */
 const restrictTo = (...roles) => {
   return (req, res, next) => {

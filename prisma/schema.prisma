@@ -159,7 +159,6 @@ model Activity {
 
 enum Role {
   ADMIN
-  MANAGER
   EMPLOYEE
 }
 
