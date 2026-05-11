@@ -40,6 +40,7 @@ model Tenant {
   invoices          Invoice[]
   prospects         ProspectMeta[]
   products          Product[]
+  systemActivities  SystemActivity[]
 }
 
 model User {
@@ -58,6 +59,7 @@ model User {
   deals        Deal[]
   activities   Activity[]
   notifications Notification[]
+  systemActivities SystemActivity[]
   customRoleId String?
   customRole   CustomRole?    @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
   assignedLeads Lead[]        @relation("LeadAssignee")
@@ -156,6 +158,23 @@ model Activity {
   @@index([dealId])
   @@index([userId])
 }
+
+model SystemActivity {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action      String
+  entityType  String
+  entityId    String
+  details     String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([createdAt])
+}
+
 
 enum Role {
   ADMIN

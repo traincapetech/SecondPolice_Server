@@ -17,7 +17,7 @@ function initSocket(httpServer) {
   });
 
   // ── Middleware: authenticate every socket connection via JWT ──────────────
-  _io.use((socket, next) => {
+  _io.use(async (socket, next) => {
     try {
       const token = socket.handshake.auth?.token;
       if (!token) return next(new Error('Authentication error: no token'));
@@ -25,6 +25,15 @@ function initSocket(httpServer) {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       socket.userId   = decoded.userId;
       socket.tenantId = decoded.tenantId;
+
+      // Dynamically require prisma to avoid circular dependency
+      const prisma = require('./prisma');
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.userId },
+        select: { role: true }
+      });
+      socket.userRole = user?.role;
+
       next();
     } catch {
       next(new Error('Authentication error: invalid token'));
@@ -36,6 +45,12 @@ function initSocket(httpServer) {
     const room = `user:${socket.userId}`;
     socket.join(room);
     console.log(`[Socket] ${socket.userId} connected → joined room "${room}"`);
+
+    if (socket.userRole === 'ADMIN') {
+      const adminRoom = `tenant:${socket.tenantId}:admin`;
+      socket.join(adminRoom);
+      console.log(`[Socket] ${socket.userId} (ADMIN) joined room "${adminRoom}"`);
+    }
 
     socket.on('disconnect', (reason) => {
       console.log(`[Socket] ${socket.userId} disconnected (${reason})`);

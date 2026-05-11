@@ -16,6 +16,19 @@ const createNotification = async ({ tenantId, userId, type, title, body, linkUrl
   // ── 1. Socket.IO push (instant, tab must be open) ─────────────────────────
   try {
     getIO().to(`user:${userId}`).emit('notification', notification);
+    
+    // Also log this as a SystemActivity so it stacks in the admin feed
+    const systemActivity = await prisma.systemActivity.create({
+      data: {
+        tenantId,
+        userId: null, // The actor is usually the system for notifications
+        action: 'NOTIFICATION',
+        entityType: 'Notification',
+        entityId: notification.id,
+        details: JSON.stringify({ message: `Notification: ${title}`, data: { type, body, linkUrl } }),
+      }
+    });
+    getIO().to(`tenant:${tenantId}:admin`).emit('system_activity', systemActivity);
   } catch {
     // Socket.IO not ready — DB record still saved
   }

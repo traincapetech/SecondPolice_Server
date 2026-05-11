@@ -1,6 +1,8 @@
 const jwt = require('jsonwebtoken');
 const AppError = require('../utils/appError');
 const prisma = require('../lib/prisma');
+const asyncLocalStorage = require('../lib/asyncContext');
+
 
 /**
  * Middleware to authenticate requests via JWT
@@ -47,7 +49,10 @@ const authenticate = async (req, res, next) => {
       createdAt: currentUser.createdAt
     };
 
-    next();
+    // Run next() inside the asyncLocalStorage context
+    asyncLocalStorage.run({ user: req.user }, () => {
+      next();
+    });
   } catch (error) {
     if (error.name === 'JsonWebTokenError') {
       return next(new AppError('Invalid token. Please log in again!', 401));
