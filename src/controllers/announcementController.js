@@ -1,5 +1,6 @@
 const prisma = require('../lib/prisma');
 const AppError = require('../utils/appError');
+const { notifyAdmins: fcmPushAdmins } = require('../utils/pushNotification');
 
 exports.getAnnouncements = async (req, res, next) => {
   try {
@@ -44,6 +45,36 @@ exports.createAnnouncement = async (req, res, next) => {
     });
 
     res.status(201).json({ status: 'success', data: { announcement } });
+
+    // FCM push to all users in the tenant — New Announcement
+    try {
+      // Fetch all users with tokens in this tenant (not just admins)
+      const { notifyAdmins: pushAllUsers } = require('../utils/pushNotification');
+      const usersWithTokens = await prisma.user.findMany({
+        where: { tenantId: req.user.tenantId, fcmToken: { not: null } },
+        select: { fcmToken: true },
+      });
+      if (usersWithTokens.length > 0) {
+        const admin = require('firebase-admin');
+        if (admin.apps.length) {
+          const tokens = usersWithTokens.map(u => u.fcmToken).filter(Boolean);
+          await admin.messaging().sendEachForMulticast({
+            notification: {
+              title: '\uD83D\uDCE3 New Announcement',
+              body: announcement.title,
+            },
+            data: {
+              screen: 'Noticeboard',
+              title: '\uD83D\uDCE3 New Announcement',
+              body: announcement.title,
+            },
+            tokens,
+          });
+        }
+      }
+    } catch (e) {
+      console.error('[FCM] announcement push failed:', e.message);
+    }
   } catch (error) {
     next(error);
   }
