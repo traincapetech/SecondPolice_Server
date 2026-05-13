@@ -2,6 +2,7 @@ const prisma = require('../lib/prisma');
 const AppError = require('../utils/appError');
 const { createNotification } = require('../services/notificationService');
 const { notifyAdmins } = require('../utils/notifyAdmins');
+const { notifyAdmins: pushAdmins } = require('../utils/pushNotification');
 
 const VALID_TYPES = ['CALL', 'EMAIL', 'MEETING', 'TASK'];
 
@@ -93,6 +94,16 @@ const createActivity = async (req, res, next) => {
         linkUrl: `/activities`,
       }).catch(console.error);
     }
+
+    // FCM push to admins — New Task created
+    try {
+      await pushAdmins({
+        tenantId: req.user.tenantId,
+        title: '✅ New Task',
+        body: `Task '${title}' has been assigned`,
+        data: { screen: 'Tasks' },
+      });
+    } catch (e) { console.error('[FCM] task create push failed:', e.message); }
   } catch (err) {
     next(err);
   }
@@ -143,6 +154,16 @@ const updateActivity = async (req, res, next) => {
         body: `${req.user.name} completed: "${activity.title}"`,
         linkUrl: '/activities',
       }).catch(console.error);
+
+      // FCM push to admins — Task completed
+      try {
+        await pushAdmins({
+          tenantId: req.user.tenantId,
+          title: '🏆 Task Done',
+          body: `Task '${activity.title}' marked as complete`,
+          data: { screen: 'Tasks' },
+        });
+      } catch (e) { console.error('[FCM] task complete push failed:', e.message); }
     }
 
     // Fire assignment notification if assignment changed

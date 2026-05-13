@@ -2,6 +2,7 @@ const prisma = require('../lib/prisma');
 const AppError = require('../utils/appError');
 const { createNotification } = require('../services/notificationService');
 const { notifyAdmins } = require('../utils/notifyAdmins');
+const { notifyAdmins: pushAdmins } = require('../utils/pushNotification');
 
 /**
  * Resolves which users in this tenant are "sales people" —
@@ -164,6 +165,17 @@ exports.createLead = async (req, res, next) => {
       linkUrl: '/leads',
     }).catch(console.error);
 
+    // FCM push to admins — New Lead
+    try {
+      const leadName = `${lead.firstName}${lead.lastName ? ' ' + lead.lastName : ''}`;
+      await pushAdmins({
+        tenantId: req.user.tenantId,
+        title: '🆕 New Lead',
+        body: `${leadName} has been added as a lead`,
+        data: { screen: 'Leads' },
+      });
+    } catch (e) { console.error('[FCM] lead create push failed:', e.message); }
+
     // Fire assignment notification (non-blocking)
     if (assignee) {
       createNotification({
@@ -307,6 +319,19 @@ exports.updateLead = async (req, res, next) => {
 
 
     res.status(200).json({ status: 'success', data: { lead } });
+
+    // FCM push to admins — Lead status changed
+    if (status && status !== existing.status) {
+      try {
+        const leadName = `${lead.firstName}${lead.lastName ? ' ' + lead.lastName : ''}`;
+        await pushAdmins({
+          tenantId: req.user.tenantId,
+          title: '📊 Lead Updated',
+          body: `${leadName}'s status changed to ${status}`,
+          data: { screen: 'Leads' },
+        });
+      } catch (e) { console.error('[FCM] lead status push failed:', e.message); }
+    }
 
     // Notify admins — #3 Lead marked lost
     if (status === 'LOST' && existing.status !== 'LOST') {

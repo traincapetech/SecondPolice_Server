@@ -1,6 +1,7 @@
 const prisma = require('../lib/prisma');
 const AppError = require('../utils/appError');
 const { notifyAdmins } = require('../utils/notifyAdmins');
+const { notifyAdmins: pushAdmins } = require('../utils/pushNotification');
 
 // GET /api/customers - List all customers AND leads
 const getCustomers = async (req, res, next) => {
@@ -102,6 +103,16 @@ const createCustomer = async (req, res, next) => {
       body: `${req.user.name} added a new customer: ${name}`,
       linkUrl: '/customers',
     }).catch(console.error);
+
+    // FCM push to admins — New Client
+    try {
+      await pushAdmins({
+        tenantId: req.user.tenantId,
+        title: '🤝 New Client',
+        body: `${name} onboarded as client`,
+        data: { screen: 'MainTabs' },
+      });
+    } catch (e) { console.error('[FCM] customer create push failed:', e.message); }
   } catch (err) {
     next(err);
   }

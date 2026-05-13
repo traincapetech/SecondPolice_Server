@@ -1,6 +1,7 @@
 const prisma = require('../lib/prisma');
 const AppError = require('../utils/appError');
 const { notifyAdmins } = require('../utils/notifyAdmins');
+const { notifyAdmins: pushAdmins } = require('../utils/pushNotification');
 
 const PROSPECT_SELECT = {
   id: true,
@@ -159,6 +160,16 @@ exports.createProspect = async (req, res, next) => {
       body: `${req.user.name} added a new prospect: ${name}`,
       linkUrl: '/prospects',
     }).catch(console.error);
+
+    // FCM push to admins — New Prospect
+    try {
+      await pushAdmins({
+        tenantId: req.user.tenantId,
+        title: '👤 New Prospect',
+        body: `${name} added as prospect`,
+        data: { screen: 'MainTabs' },
+      });
+    } catch (e) { console.error('[FCM] prospect create push failed:', e.message); }
   } catch (err) {
     next(err);
   }

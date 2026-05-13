@@ -2,6 +2,7 @@ const prisma = require('../lib/prisma');
 const AppError = require('../utils/appError');
 const { createInvoiceFromDeal } = require('../services/invoiceService');
 const { notifyAdmins } = require('../utils/notifyAdmins');
+const { notifyAdmins: pushAdmins } = require('../utils/pushNotification');
 
 const VALID_STAGES = ['LEAD', 'QUALIFIED', 'PROPOSAL', 'NEGOTIATION', 'WON', 'LOST'];
 
@@ -70,6 +71,16 @@ const createDeal = async (req, res, next) => {
       body: `${req.user.name} created a new deal: "${deal.title}"`,
       linkUrl: '/deals',
     }).catch(console.error);
+
+    // FCM push to admins — New Deal
+    try {
+      await pushAdmins({
+        tenantId: req.user.tenantId,
+        title: '💰 New Deal',
+        body: `${deal.title} deal has been created`,
+        data: { screen: 'Pipeline' },
+      });
+    } catch (e) { console.error('[FCM] deal create push failed:', e.message); }
   } catch (err) {
     next(err);
   }
@@ -132,6 +143,16 @@ const updateDeal = async (req, res, next) => {
                        `${req.user.name} moved "${deal.title}" to ${stage}`,
         linkUrl: '/deals',
       }).catch(console.error);
+
+      // FCM push to admins — Deal stage changed
+      try {
+        await pushAdmins({
+          tenantId: req.user.tenantId,
+          title: '🔄 Deal Updated',
+          body: `${deal.title} moved to ${stage}`,
+          data: { screen: 'Pipeline' },
+        });
+      } catch (e) { console.error('[FCM] deal stage push failed:', e.message); }
     }
 
     // Auto-create DRAFT invoice when deal is moved to WON for the first time
