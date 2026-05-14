@@ -3,7 +3,11 @@ const { PrismaPg } = require('@prisma/adapter-pg');
 const { PrismaClient } = require('@prisma/client');
 const asyncLocalStorage = require('./asyncContext');
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const pool = new Pool({ 
+  connectionString: process.env.DATABASE_URL,
+  max: 3, // Prevent EMAXCONNSESSION in development
+  idleTimeoutMillis: 30000 
+});
 const adapter = new PrismaPg(pool);
 
 const basePrisma = new PrismaClient({ adapter });
@@ -86,3 +90,16 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 module.exports = prisma;
+
+// Gracefully close connections on nodemon restarts to prevent connection leaks
+process.once('SIGUSR2', async () => {
+  await prisma.$disconnect();
+  await pool.end();
+  process.kill(process.pid, 'SIGUSR2');
+});
+
+process.on('SIGINT', async () => {
+  await prisma.$disconnect();
+  await pool.end();
+  process.exit(0);
+});

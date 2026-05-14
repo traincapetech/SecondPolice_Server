@@ -42,6 +42,9 @@ model Tenant {
   products          Product[]
   systemActivities  SystemActivity[]
   announcements     Announcement[]
+  departments       Department[]
+  designations      Designation[]
+  employeeProfiles  EmployeeProfile[]
 }
 
 model User {
@@ -62,6 +65,8 @@ model User {
   notifications Notification[]
   systemActivities SystemActivity[]
   announcements Announcement[]
+  employeeProfile  EmployeeProfile?
+  managedEmployees EmployeeProfile[] @relation("EmployeeManager")
   customRoleId String?
   customRole   CustomRole?    @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
   assignedLeads Lead[]        @relation("LeadAssignee")
@@ -196,6 +201,84 @@ model Announcement {
 enum Role {
   ADMIN
   EMPLOYEE
+}
+
+// ============================================================================
+// HRMS MODULE — Phase 1: Foundation & Employee Management
+// ============================================================================
+
+model Department {
+  id          String            @id @default(uuid())
+  tenantId    String
+  tenant      Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name        String
+  code        String?
+  description String?
+  employees   EmployeeProfile[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+model Designation {
+  id          String            @id @default(uuid())
+  tenantId    String
+  tenant      Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  title       String
+  level       Int               @default(1)  // 1=Junior … 5=Senior/Lead
+  description String?
+  employees   EmployeeProfile[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@unique([tenantId, title])
+  @@index([tenantId])
+}
+
+model EmployeeProfile {
+  id              String       @id @default(uuid())
+  tenantId        String
+  tenant          Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // 1-to-1 link to User (auth, email, name live there)
+  userId          String       @unique
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Hierarchy
+  departmentId    String?
+  department      Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  designationId   String?
+  designation     Designation? @relation(fields: [designationId], references: [id], onDelete: SetNull)
+  managerId       String?      // points to another EmployeeProfile.userId
+  manager         User?        @relation("EmployeeManager", fields: [managerId], references: [id], onDelete: SetNull)
+
+  // Personal info
+  employeeCode    String?      // e.g. EMP-0001
+  gender          String?
+  dob             DateTime?
+  phone           String?
+  address         String?
+  emergencyContact String?
+  bloodGroup      String?
+
+  // Employment info
+  joiningDate     DateTime?
+  probationEndDate DateTime?
+  employmentType  String       @default("FULL_TIME")  // FULL_TIME | PART_TIME | CONTRACT | INTERN
+  workLocation    String       @default("OFFICE")    // OFFICE | REMOTE | HYBRID
+  employeeStatus  String       @default("ACTIVE")    // ACTIVE | PROBATION | NOTICE_PERIOD | TERMINATED
+
+  // Salary (basic; detailed structure comes in Phase 3)
+  basicSalary     Float?
+
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([tenantId])
+  @@index([departmentId])
+  @@index([managerId])
 }
 
 enum ActivityType {

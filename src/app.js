@@ -24,6 +24,8 @@ const jobRoutes            = require('./routes/jobRoutes');
 const campaignRoutes       = require('./routes/campaignRoutes');
 const systemActivityRoutes = require('./routes/systemActivityRoutes');
 const announcementRoutes   = require('./routes/announcementRoutes');
+const hrOrgRoutes          = require('./routes/hrOrgRoutes');
+const hrEmployeeRoutes     = require('./routes/hrEmployeeRoutes');
 const AppError = require('./utils/appError');
 const globalErrorHandler = require('./middlewares/errorController');
 
@@ -71,6 +73,8 @@ app.use('/api/jobs',              jobRoutes);
 app.use('/api/campaigns',         campaignRoutes);
 app.use('/api/system-activities', systemActivityRoutes);
 app.use('/api/announcements',     announcementRoutes);
+app.use('/api/hr',                hrOrgRoutes);
+app.use('/api/hr/employees',      hrEmployeeRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
