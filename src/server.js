@@ -30,3 +30,4 @@ process.on('unhandledRejection', err => {
 });
 
  
+// trigger restart

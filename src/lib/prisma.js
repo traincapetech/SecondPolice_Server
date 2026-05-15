@@ -12,7 +12,7 @@ const adapter = new PrismaPg(pool);
 
 const basePrisma = new PrismaClient({ adapter });
 
-const TRACKED_MODELS = ['Deal', 'Lead', 'Customer', 'Invoice', 'ProspectMeta', 'Campaign', 'User', 'Tenant', 'Activity', 'CustomRole', 'Announcement'];
+const TRACKED_MODELS = ['Deal', 'Lead', 'Customer', 'Invoice', 'ProspectMeta', 'Campaign', 'User', 'Tenant', 'Activity', 'CustomRole', 'Announcement', 'Attendance', 'LeaveRequest'];
 
 function logActivity(record, model, action) {
   // Fire and forget so we don't block the request

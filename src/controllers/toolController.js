@@ -19,7 +19,7 @@ const getToolUser = async (sessionId, email) => {
     }
     return user;
   }
-  
+
   if (sessionId) {
     let user = await prisma.toolUser.findUnique({ where: { sessionId } });
     if (!user) {
@@ -27,7 +27,7 @@ const getToolUser = async (sessionId, email) => {
     }
     return user;
   }
-  
+
   // If neither, generate a new anonymous session
   const newSessionId = crypto.randomBytes(16).toString('hex');
   return await prisma.toolUser.create({ data: { sessionId: newSessionId } });
@@ -40,15 +40,15 @@ exports.getOrCreateSession = async (req, res) => {
   try {
     const { sessionId, email } = req.body;
     const user = await getToolUser(sessionId, email);
-    
+
     // Also return their current usage and active purchases
     const usage = await prisma.toolUsage.findFirst({
       where: { toolUserId: user.id, tool: 'INVOICE' }
     });
-    
+
     const activePass = await prisma.toolPurchase.findFirst({
-      where: { 
-        toolUserId: user.id, 
+      where: {
+        toolUserId: user.id,
         tool: 'INVOICE',
         status: 'COMPLETED',
         OR: [
@@ -80,7 +80,7 @@ exports.generateInvoice = async (req, res) => {
   try {
     const { sessionId, email, invoiceData } = req.body;
     console.log('Generating invoice with data:', JSON.stringify(invoiceData, null, 2));
-    
+
     // 1. Get or create user
     const user = await getToolUser(sessionId, email);
 
@@ -96,8 +96,8 @@ exports.generateInvoice = async (req, res) => {
     }
 
     const activePass = await prisma.toolPurchase.findFirst({
-      where: { 
-        toolUserId: user.id, 
+      where: {
+        toolUserId: user.id,
         tool: 'INVOICE',
         status: 'COMPLETED',
         OR: [
@@ -109,7 +109,7 @@ exports.generateInvoice = async (req, res) => {
 
     // 2. Check limits and permissions
     const templateId = invoiceData.templateId || 'basic';
-    const isPremiumTemplate = ['creative', 'executive'].includes(templateId);
+    const isPremiumTemplate = ['creative', 'executive', 'futuristic', 'royal', 'startup'].includes(templateId);
 
     // If premium template, require active pass
     if (isPremiumTemplate && !activePass) {
@@ -124,49 +124,73 @@ exports.generateInvoice = async (req, res) => {
     // (Payment still required for premium templates)
 
     // 3. Save the invoice
-    const newInvoice = await prisma.standaloneInvoice.create({
-      data: {
-        toolUserId: user.id,
-        invoiceNo: invoiceData.invoiceNo || `INV-${Date.now()}`,
-        clientName: invoiceData.clientName,
-        clientEmail: invoiceData.clientEmail,
-        clientAddress: invoiceData.clientAddress,
-        clientPhone: invoiceData.clientPhone || null,
-        senderName: invoiceData.senderName,
-        senderEmail: invoiceData.senderEmail,
-        senderAddress: invoiceData.senderAddress,
-        senderPhone: invoiceData.senderPhone || null,
-        senderGstin: invoiceData.senderGstin || null,
-        senderPan: invoiceData.senderPan || null,
-        senderBusinessCategory: invoiceData.senderBusinessCategory || null,
-        logoUrl: invoiceData.logoUrl || null,
-        amount: invoiceData.amount,
-        currency: invoiceData.currency || 'INR',
-        taxRate: invoiceData.taxRate || 0,
-        taxAmount: invoiceData.taxAmount || 0,
-        totalAmount: invoiceData.totalAmount,
-        invoiceDate: invoiceData.invoiceDate ? new Date(invoiceData.invoiceDate) : new Date(),
-        dueDate: invoiceData.dueDate ? new Date(invoiceData.dueDate) : null,
-        items: invoiceData.items || [],
-        notes: invoiceData.notes,
-      }
-    });
+    try {
+      const dueDateObj = (invoiceData.dueDate && invoiceData.dueDate !== '') ? new Date(invoiceData.dueDate) : null;
+      const invoiceDateObj = invoiceData.invoiceDate ? new Date(invoiceData.invoiceDate) : new Date();
 
-    // 4. Increment usage
-    await prisma.toolUsage.update({
-      where: { id: usage.id },
-      data: { usageCount: { increment: 1 } }
-    });
+      const newInvoice = await prisma.standaloneInvoice.create({
+        data: {
+          toolUserId: user.id,
+          invoiceNo: (invoiceData.invoiceNo || `INV-${Date.now()}`).toString(),
+          clientName: (invoiceData.clientName || 'Unnamed Client').toString(),
+          clientEmail: invoiceData.clientEmail || null,
+          clientAddress: invoiceData.clientAddress || null,
+          clientPhone: invoiceData.clientPhone || null,
+          senderName: invoiceData.senderName || null,
+          senderEmail: invoiceData.senderEmail || null,
+          senderAddress: invoiceData.senderAddress || null,
+          senderPhone: invoiceData.senderPhone || null,
+          senderGstin: invoiceData.senderGstin || null,
+          senderPan: invoiceData.senderPan || null,
+          senderBusinessCategory: invoiceData.senderBusinessCategory || null,
+          logoUrl: invoiceData.logoUrl || null,
+          amount: parseFloat(Number(invoiceData.amount || 0).toFixed(2)),
+          currency: (invoiceData.currency || 'INR').toString(),
+          taxRate: parseFloat(Number(invoiceData.taxRate || 0).toFixed(2)),
+          taxAmount: parseFloat(Number(invoiceData.taxAmount || 0).toFixed(2)),
+          totalAmount: parseFloat(Number(invoiceData.totalAmount || 0).toFixed(2)),
+          invoiceDate: isNaN(invoiceDateObj.getTime()) ? new Date() : invoiceDateObj,
+          dueDate: (dueDateObj && !isNaN(dueDateObj.getTime())) ? dueDateObj : null,
+          items: Array.isArray(invoiceData.items) ? invoiceData.items : [],
+          notes: invoiceData.notes || null,
+          templateId: (invoiceData.templateId || 'basic').toString(),
+        }
+      });
 
-    res.status(201).json({
-      success: true,
-      data: newInvoice,
-      usageCount: usage.usageCount + 1,
-      hasActivePass: !!activePass
-    });
+      // 4. Increment usage
+      await prisma.toolUsage.update({
+        where: { id: usage.id },
+        data: { usageCount: { increment: 1 } }
+      });
+
+      res.status(201).json({
+        success: true,
+        data: newInvoice,
+        usageCount: usage.usageCount + 1,
+        hasActivePass: !!activePass
+      });
+    } catch (dbError) {
+      console.error('CRITICAL: Prisma Create Error!', {
+        code: dbError.code,
+        meta: dbError.meta,
+        message: dbError.message
+      });
+      // Send back the specific Prisma error message if possible
+      const errorMsg = dbError.meta?.cause || dbError.message || 'Database validation failed';
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Database Error', 
+        details: errorMsg,
+        prismaCode: dbError.code 
+      });
+    }
   } catch (error) {
-    console.error('Invoice generation error:', error);
-    res.status(500).json({ success: false, error: 'Server Error', details: error.message });
+    console.error('Invoice generation outer error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Server Error', 
+      details: error.message 
+    });
   }
 };
 
@@ -176,7 +200,7 @@ exports.generateInvoice = async (req, res) => {
 exports.createCheckout = async (req, toolRes) => {
   try {
     const { sessionId, email, templateId } = req.body;
-    
+
     // Ensure user exists
     const user = await getToolUser(sessionId, email);
 
@@ -207,9 +231,9 @@ exports.createCheckout = async (req, toolRes) => {
 // @access  Public
 exports.verifyPayment = async (req, res) => {
   try {
-    const { 
-      razorpay_order_id, 
-      razorpay_payment_id, 
+    const {
+      razorpay_order_id,
+      razorpay_payment_id,
       razorpay_signature,
       sessionId,
       email,
@@ -221,7 +245,7 @@ exports.verifyPayment = async (req, res) => {
     // Verify signature
     const body = razorpay_order_id + "|" + razorpay_payment_id;
     const secret = process.env.RAZORPAY_KEY_SECRET || 'placeholder_secret';
-    
+
     const expectedSignature = crypto
       .createHmac('sha256', secret)
       .update(body.toString())
@@ -275,29 +299,39 @@ exports.downloadInvoice = async (req, res) => {
       name: invoice.senderName || 'Your Company',
       companyProfile: {
         businessCategory: invoice.senderBusinessCategory || null,
-        address:          invoice.senderAddress          || null,
-        gstin:            invoice.senderGstin            || null,
-        pan:              invoice.senderPan              || null,
-        companyEmail:     invoice.senderEmail            || null,
-        companyPhone:     invoice.senderPhone            || null,
-        logoUrl:          invoice.logoUrl                || null,
+        address: invoice.senderAddress || null,
+        gstin: invoice.senderGstin || null,
+        pan: invoice.senderPan || null,
+        companyEmail: invoice.senderEmail || null,
+        companyPhone: invoice.senderPhone || null,
+        logoUrl: invoice.logoUrl || null,
       }
     };
 
     // Attach dates so pdfGenerator can render them correctly
-    const invoiceForPdf = { 
-      ...invoice, 
+    const invoiceForPdf = {
+      ...invoice,
       clientPhone: invoice.clientPhone || null,
+      templateId: invoice.templateId || 'basic',
       createdAt: invoice.invoiceDate || invoice.createdAt // Use specified invoiceDate as primary
     };
 
-    const pdfBuffer = await generateInvoicePDF(invoiceForPdf, tenantPlaceholder);
+    const pdfBuffer = await generateInvoicePDF(invoiceForPdf);
 
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=invoice-${invoice.invoiceNo}.pdf`);
+    res.setHeader('Content-Disposition', `attachment; filename=invoice-${id}.pdf`);
     res.send(pdfBuffer);
+
   } catch (error) {
-    console.error("PDF Download Error:", error);
-    res.status(500).json({ success: false, error: 'Server Error' });
+    console.error('CRITICAL: Invoice download error!', {
+      id,
+      message: error.message,
+      stack: error.stack
+    });
+    res.status(500).json({ 
+      success: false, 
+      error: 'PDF Generation Error', 
+      details: error.message 
+    });
   }
 };

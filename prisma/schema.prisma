@@ -40,11 +40,14 @@ model Tenant {
   invoices          Invoice[]
   prospects         ProspectMeta[]
   products          Product[]
+  expenses          Expense[]
   systemActivities  SystemActivity[]
   announcements     Announcement[]
   departments       Department[]
   designations      Designation[]
   employeeProfiles  EmployeeProfile[]
+  attendances       Attendance[]
+  leaveRequests     LeaveRequest[]
 }
 
 model User {
@@ -60,6 +63,7 @@ model User {
   role            Role           @default(EMPLOYEE)
   workspaceId     String?        @unique
   createdAt       DateTime       @default(now())
+  nextSalaryReimbursement Float  @default(0) // Added for expense claim reimbursements
   deals        Deal[]
   activities   Activity[]
   notifications Notification[]
@@ -72,9 +76,11 @@ model User {
   assignedLeads Lead[]        @relation("LeadAssignee")
   createdLeads  Lead[]        @relation("LeadCreator")
   createdProspects ProspectMeta[] @relation("ProspectCreator")
+  expenses      Expense[]
   pushSubscriptions PushSubscription[]
   toolUser      ToolUser?
   fcmToken      String?
+  approvedLeaves LeaveRequest[] @relation("LeaveApprover")
 
   @@index([tenantId])
 }
@@ -95,8 +101,45 @@ model Customer {
   status     String     @default("LEAD")
   createdAt  DateTime   @default(now())
   activities Activity[]
+  expenses   Expense[]
 
   @@index([tenantId])
+}
+
+model Expense {
+  id            String   @id @default(uuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customerId    String?
+  customer      Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  title         String
+  description   String?
+  category      String?
+  amount        Float
+  currency      Currency @default(USD)
+  status        ExpenseStatus @default(PENDING)
+  spentAt       DateTime @default(now())
+  proofUrl      String?
+  proofPath     String?
+  proofFileName String?
+  proofMimeType String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([customerId])
+  @@index([spentAt])
+  @@index([status])
+}
+
+enum ExpenseStatus {
+  PENDING
+  APPROVED
+  PAID
+  REJECTED
 }
 
 model Deal {
@@ -200,6 +243,7 @@ model Announcement {
 
 enum Role {
   ADMIN
+  MANAGER
   EMPLOYEE
 }
 
@@ -275,6 +319,9 @@ model EmployeeProfile {
 
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
+
+  attendances     Attendance[]
+  leaveRequests   LeaveRequest[] @relation("EmployeeLeaves")
 
   @@index([tenantId])
   @@index([departmentId])
@@ -593,6 +640,7 @@ model StandaloneInvoice {
   items         Json     // Array of invoice items
   notes         String?
   
+  templateId    String   @default("basic")
   invoiceDate   DateTime @default(now())
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -658,4 +706,55 @@ model CampaignRecipient {
 
   @@index([campaignId])
   @@index([status])
+}
+
+// ─── HRMS PHASE 2: ATTENDANCE & LEAVES ────────────────────────────────────
+
+model Attendance {
+  id                String          @id @default(uuid())
+  tenantId          String
+  tenant            Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employeeProfileId String
+  employeeProfile   EmployeeProfile @relation(fields: [employeeProfileId], references: [id], onDelete: Cascade)
+  
+  date              DateTime        // The calendar date of this record (normalized to start of day)
+  checkIn           DateTime?       // Actual check-in timestamp
+  checkOut          DateTime?       // Actual check-out timestamp
+  totalHours        Float?          // Calculated hours between checkIn and checkOut
+  overtimeHours     Float           @default(0)
+  status            String          @default("PRESENT") // PRESENT, ABSENT, HALF_DAY, LEAVE, HOLIDAY
+  workMode          String          @default("OFFICE")  // OFFICE, REMOTE
+  remarks           String?
+  
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([tenantId])
+  @@index([employeeProfileId])
+  @@index([date])
+}
+
+model LeaveRequest {
+  id                String          @id @default(uuid())
+  tenantId          String
+  tenant            Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employeeProfileId String
+  employeeProfile   EmployeeProfile @relation("EmployeeLeaves", fields: [employeeProfileId], references: [id], onDelete: Cascade)
+  
+  leaveType         String          // CASUAL, SICK, EARNED, UNPAID, MATERNITY
+  startDate         DateTime
+  endDate           DateTime
+  totalDays         Float
+  reason            String
+  status            String          @default("PENDING") // PENDING, APPROVED, REJECTED
+  
+  approvedById      String?
+  approvedBy        User?           @relation("LeaveApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  managerRemarks    String?
+  
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([tenantId])
+  @@index([employeeProfileId])
 }
