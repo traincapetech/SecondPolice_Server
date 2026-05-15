@@ -5,6 +5,11 @@ const getDashboardStats = async (req, res, next) => {
   try {
     const tenantId = req.user.tenantId;
 
+    const baseDealWhere = { tenantId };
+    if (req.user.role !== 'ADMIN') {
+      baseDealWhere.assignedTo = req.user.id;
+    }
+
     const [
       totalDeals,
       wonDeals,
@@ -14,30 +19,33 @@ const getDashboardStats = async (req, res, next) => {
       rawLeads,
     ] = await Promise.all([
       // Total active deals (not lost)
-      prisma.deal.count({ where: { tenantId, NOT: { stage: 'LOST' } } }),
+      prisma.deal.count({ where: { ...baseDealWhere, NOT: { stage: 'LOST' } } }),
 
       // Won deals count
-      prisma.deal.count({ where: { tenantId, stage: 'WON' } }),
+      prisma.deal.count({ where: { ...baseDealWhere, stage: 'WON' } }),
 
       // Sum of value for WON deals (revenue)
       prisma.deal.aggregate({
-        where: { tenantId, stage: 'WON' },
+        where: { ...baseDealWhere, stage: 'WON' },
         _sum: { value: true },
       }),
 
       // Deals grouped by stage for the pipeline chart
       prisma.deal.groupBy({
         by: ['stage'],
-        where: { tenantId },
+        where: baseDealWhere,
         _count: { id: true },
         _sum: { value: true },
       }),
 
       // Fetch all customers for unified count/recent
-      prisma.customer.findMany({
-        where: { tenantId },
-        orderBy: { createdAt: 'desc' },
-      }),
+      // If employee, return empty array to only show their own leads as customers
+      req.user.role !== 'ADMIN' 
+        ? Promise.resolve([])
+        : prisma.customer.findMany({
+            where: { tenantId },
+            orderBy: { createdAt: 'desc' },
+          }),
 
       // Fetch leads for unified count/recent
       prisma.lead.findMany({
