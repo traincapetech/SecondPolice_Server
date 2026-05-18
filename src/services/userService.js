@@ -9,18 +9,26 @@ const { generateWorkspaceId } = require('../utils/workspaceIdGenerator');
 const addEmployee = async (tenantId, data) => {
   const { name, temporaryPassword, role, customRoleId } = data;
   const email = data.email.toLowerCase().trim();
-
   // 1. Check if user already exists
   const existingUser = await prisma.user.findUnique({ where: { email } });
   if (existingUser) {
     throw new AppError('A user with this email already exists in the system.', 400);
   }
 
-  // 2. Hash temporary password
+  // 2. Check SaaS Seat Limit
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: tenantId },
+    include: { _count: { select: { users: true } } }
+  });
+
+  if (tenant._count.users >= (tenant.seatLimit || 5)) {
+    throw new AppError(`Seat limit reached (${tenant.seatLimit}). Please upgrade your plan to add more team members.`, 403);
+  }
+
+  // 3. Hash temporary password
   const hashedPassword = await bcrypt.hash(temporaryPassword, 12);
 
-  // 3. Fetch Tenant and Role info for ID generation
-  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
+  // 3. Fetch Role info for ID generation
   let roleName = role || 'EMPLOYEE';
   if (customRoleId) {
     const customRole = await prisma.customRole.findUnique({ where: { id: customRoleId } });

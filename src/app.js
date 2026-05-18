@@ -30,6 +30,14 @@ const hrEmployeeRoutes = require('./routes/hrEmployeeRoutes');
 const hrAttendanceRoutes = require('./routes/hrAttendanceRoutes');
 const hrLeaveRoutes = require('./routes/hrLeaveRoutes');
 const expenseRoutes = require('./routes/expenseRoutes');
+const billingRoutes = require('./routes/billingRoutes');
+const pricingRoutes = require('./routes/pricingRoutes');
+const toolPricingRoutes = require('./routes/toolPricingRoutes');
+const webhookRoutes = require('./routes/webhookRoutes');
+const superAdminRoutes = require('./routes/superAdminRoutes');
+const subscriptionCronRoutes = require('./routes/subscriptionCronRoutes');
+const { authenticate } = require('./middlewares/authMiddleware');
+const { subscriptionGate } = require('./middlewares/subscriptionGate');
 
 const AppError = require('./utils/appError');
 const globalErrorHandler = require('./middlewares/errorController');
@@ -53,8 +61,33 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-cron-secret']
 }));
+app.use(morgan('dev'));
+
+// Stripe Webhook MUST be before express.json()
+app.use('/api/webhooks/stripe', webhookRoutes);
+
 app.use(express.json({ limit: '10mb' }));
 app.use(morgan('dev'));
+
+// Apply subscription gate to all protected routes
+// Skips paths that don't need a subscription check
+app.use('/api', (req, res, next) => {
+  const openPaths = [
+    '/api/auth', '/api/pricing', '/api/webhooks',
+    '/api/health', '/api/push', '/api/billing',
+    '/api/cron', '/api/notifications'
+  ];
+  if (openPaths.some(p => req.originalUrl.startsWith(p))) return next();
+
+  // If req.user is already set (by a route's own authenticate), just gate
+  if (req.user) return subscriptionGate(req, res, next);
+
+  // Otherwise authenticate first, then gate
+  authenticate(req, res, (err) => {
+    if (err) return next(); // unauthenticated — let the route's own middleware handle 401
+    subscriptionGate(req, res, next);
+  });
+});
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -83,6 +116,11 @@ app.use('/api/hr/employees', hrEmployeeRoutes);
 app.use('/api/hr/attendance', hrAttendanceRoutes);
 app.use('/api/hr/leaves', hrLeaveRoutes);
 app.use('/api/expenses', expenseRoutes);
+app.use('/api/billing', billingRoutes);
+app.use('/api/pricing', pricingRoutes);
+app.use('/api/pricing/tools', toolPricingRoutes);
+app.use('/api/superadmin', superAdminRoutes);
+app.use('/api/cron', subscriptionCronRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

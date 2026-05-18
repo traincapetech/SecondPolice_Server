@@ -55,7 +55,7 @@ exports.getEmployee = async (req, res, next) => {
 // POST – create employee profile for an existing User
 exports.createEmployee = async (req, res, next) => {
   try {
-    if (req.user.role !== 'ADMIN' && req.user.permissions?.['HR'] !== 'Read & Write') {
+    if (req.user.role !== 'ADMIN' && req.user.permissions?.['HR Directory'] !== 'Read & Write') {
       return next(new AppError('Permission denied', 403));
     }
 
@@ -113,7 +113,7 @@ exports.createEmployee = async (req, res, next) => {
 // PUT – update employee profile
 exports.updateEmployee = async (req, res, next) => {
   try {
-    if (req.user.role !== 'ADMIN' && req.user.permissions?.['HR'] !== 'Read & Write') {
+    if (req.user.role !== 'ADMIN' && req.user.permissions?.['HR Directory'] !== 'Read & Write') {
       return next(new AppError('Permission denied', 403));
     }
 
@@ -161,7 +161,7 @@ exports.updateEmployee = async (req, res, next) => {
 // DELETE – remove employee profile (keeps User account)
 exports.deleteEmployee = async (req, res, next) => {
   try {
-    if (req.user.role !== 'ADMIN' && req.user.permissions?.['HR'] !== 'Read & Write') {
+    if (req.user.role !== 'ADMIN' && req.user.permissions?.['HR Directory'] !== 'Read & Write') {
       return next(new AppError('Permission denied', 403));
     }
     const { id } = req.params;

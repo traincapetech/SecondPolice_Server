@@ -18,7 +18,7 @@ exports.getDepartments = async (req, res, next) => {
 
 exports.createDepartment = async (req, res, next) => {
   try {
-    if (req.user.role !== 'ADMIN' && req.user.permissions?.['HR'] !== 'Read & Write') {
+    if (req.user.role !== 'ADMIN' && req.user.permissions?.['Departments'] !== 'Read & Write') {
       return next(new AppError('Permission denied', 403));
     }
     const { name, code, description } = req.body;
@@ -36,7 +36,7 @@ exports.createDepartment = async (req, res, next) => {
 
 exports.updateDepartment = async (req, res, next) => {
   try {
-    if (req.user.role !== 'ADMIN' && req.user.permissions?.['HR'] !== 'Read & Write') {
+    if (req.user.role !== 'ADMIN' && req.user.permissions?.['Departments'] !== 'Read & Write') {
       return next(new AppError('Permission denied', 403));
     }
     const { id } = req.params;
@@ -57,7 +57,7 @@ exports.updateDepartment = async (req, res, next) => {
 
 exports.deleteDepartment = async (req, res, next) => {
   try {
-    if (req.user.role !== 'ADMIN' && req.user.permissions?.['HR'] !== 'Read & Write') {
+    if (req.user.role !== 'ADMIN' && req.user.permissions?.['Departments'] !== 'Read & Write') {
       return next(new AppError('Permission denied', 403));
     }
     const { id } = req.params;
@@ -87,7 +87,7 @@ exports.getDesignations = async (req, res, next) => {
 
 exports.createDesignation = async (req, res, next) => {
   try {
-    if (req.user.role !== 'ADMIN' && req.user.permissions?.['HR'] !== 'Read & Write') {
+    if (req.user.role !== 'ADMIN' && req.user.permissions?.['Departments'] !== 'Read & Write') {
       return next(new AppError('Permission denied', 403));
     }
     const { title, level, description } = req.body;
@@ -110,7 +110,7 @@ exports.createDesignation = async (req, res, next) => {
 
 exports.updateDesignation = async (req, res, next) => {
   try {
-    if (req.user.role !== 'ADMIN' && req.user.permissions?.['HR'] !== 'Read & Write') {
+    if (req.user.role !== 'ADMIN' && req.user.permissions?.['Departments'] !== 'Read & Write') {
       return next(new AppError('Permission denied', 403));
     }
     const { id } = req.params;
@@ -131,7 +131,7 @@ exports.updateDesignation = async (req, res, next) => {
 
 exports.deleteDesignation = async (req, res, next) => {
   try {
-    if (req.user.role !== 'ADMIN' && req.user.permissions?.['HR'] !== 'Read & Write') {
+    if (req.user.role !== 'ADMIN' && req.user.permissions?.['Departments'] !== 'Read & Write') {
       return next(new AppError('Permission denied', 403));
     }
     const { id } = req.params;

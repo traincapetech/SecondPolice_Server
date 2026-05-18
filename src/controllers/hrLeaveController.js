@@ -9,7 +9,7 @@ const prisma = require('../lib/prisma');
 exports.getLeaves = async (req, res) => {
   try {
     const { user } = req;
-    const isHRAdmin = user.role === 'ADMIN' || user.permissions?.['HR'] === 'Read & Write';
+    const isHRAdmin = user.role === 'ADMIN' || user.permissions?.['HR Directory'] === 'Read & Write';
     
     let targetEmployeeProfileId = null;
     
@@ -97,7 +97,7 @@ exports.updateLeaveStatus = async (req, res) => {
     const { id } = req.params;
     const { status, managerRemarks } = req.body; // APPROVED or REJECTED
 
-    const isHRAdmin = user.role === 'ADMIN' || user.permissions?.['HR'] === 'Read & Write';
+    const isHRAdmin = user.role === 'ADMIN' || user.permissions?.['HR Directory'] === 'Read & Write';
     if (!isHRAdmin) {
       return res.status(403).json({ success: false, error: 'Not authorized to approve/reject leaves.' });
     }

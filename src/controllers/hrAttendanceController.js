@@ -9,7 +9,7 @@ const { startOfDay, endOfDay, differenceInMinutes } = require('date-fns');
 exports.getAttendance = async (req, res) => {
   try {
     const { user } = req;
-    const isHRAdmin = user.role === 'ADMIN' || user.permissions?.['HR'] === 'Read & Write';
+    const isHRAdmin = user.role === 'ADMIN' || user.permissions?.['HR Directory'] === 'Read & Write';
     
     // Determine the target employee. If not HRAdmin, force to self.
     let targetEmployeeProfileId = null;

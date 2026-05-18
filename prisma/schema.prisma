@@ -48,6 +48,13 @@ model Tenant {
   employeeProfiles  EmployeeProfile[]
   attendances       Attendance[]
   leaveRequests     LeaveRequest[]
+
+  // SaaS Billing additions
+  stripeCustomerId     String?
+  subscriptionId       String?   // FK to TenantSubscription
+  subscription         TenantSubscription?
+  seatLimit            Int       @default(5)
+  billingEvents        BillingEvent[]
 }
 
 model User {
@@ -81,6 +88,9 @@ model User {
   toolUser      ToolUser?
   fcmToken      String?
   approvedLeaves LeaveRequest[] @relation("LeaveApprover")
+
+  // SaaS Billing additions
+  stripeCustomerId     String?   // for standalone users without an org
 
   @@index([tenantId])
 }
@@ -242,6 +252,7 @@ model Announcement {
 }
 
 enum Role {
+  SUPERADMIN
   ADMIN
   MANAGER
   EMPLOYEE
@@ -372,6 +383,12 @@ model Invoice {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
+  // SaaS Billing additions
+  taxConfigId          String?
+  sacCode              String?   @default("998313")
+  subtotalAmount       Float?
+  creditNote           String?
+
   @@index([tenantId])
   @@index([status])
 }
@@ -450,6 +467,7 @@ enum LeadStatus {
   UNQUALIFIED
   CONVERTED
   LOST
+  CONVERTED_DEAL // Added to distinguish converted from just qualified
 }
 
 enum LeadPriority {
@@ -575,6 +593,10 @@ model ToolUser {
   usages       ToolUsage[]
   purchases    ToolPurchase[]
   invoices     StandaloneInvoice[]
+  
+  // New billing relation
+  passPurchases ToolPassPurchase[]
+  credits       StandaloneCredit[]
 
   // Optional link to CRM User if they convert later
   crmUserId    String?  @unique
@@ -757,4 +779,245 @@ model LeaveRequest {
 
   @@index([tenantId])
   @@index([employeeProfileId])
+}
+
+// ─── NEW SAAS BILLING & SUBSCRIPTION MODELS ─────────────────────────────────
+
+model PricingPlan {
+  id           String      @id @default(cuid())
+  name         String      // "Starter", "Pro", "Enterprise"
+  slug         String      @unique // "starter", "pro", "enterprise"
+  description  String?
+  isActive     Boolean     @default(true)
+  sortOrder    Int         @default(0)
+  features     Json        // string[] shown on pricing page
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  seatTiers    SeatTier[]
+  subscriptions TenantSubscription[]
+}
+
+model SeatTier {
+  id                    String   @id @default(cuid())
+  planId                String
+  plan                  PricingPlan @relation(fields: [planId], references: [id])
+  label                 String   // "1–5 users", "6–10 users"
+  minSeats              Int
+  maxSeats              Int      // 999 for unlimited
+  baseAmountInr         Decimal  // display price — change here, no redeploy
+  baseAmountUsd         Decimal
+  yearlyAmountInr       Decimal  // yearly price (usually 10x monthly)
+  yearlyAmountUsd       Decimal
+  stripePriceIdMonthly  String?  // set after creating Price in Stripe
+  stripePriceIdYearly   String?
+  isActive              Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  subscriptions TenantSubscription[]
+}
+
+model TaxConfig {
+  id            String   @id @default(cuid())
+  name          String   // "India GST", "International"
+  region        String   // "INR", "USD", "EUR", "ALL"
+  taxType       String   // "GST", "VAT", "NONE"
+  rate          Decimal  // 0.18 for 18%
+  isActive      Boolean  @default(true)
+  effectiveFrom DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model CompanyConfig {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+  // seed rows: company_gstin, company_name, company_address,
+  // company_pan, company_sac_code (998313), support_email,
+  // invoice_prefix, credit_window_days (30), credit_cap_percent (100)
+}
+
+model TenantSubscription {
+  id                     String   @id @default(cuid())
+  tenantId               String   @unique
+  tenant                 Tenant   @relation(fields: [tenantId], references: [id])
+  planId                 String
+  plan                   PricingPlan @relation(fields: [planId], references: [id])
+  seatTierId             String
+  seatTier               SeatTier @relation(fields: [seatTierId], references: [id])
+  stripeCustomerId       String
+  stripeSubscriptionId   String   @unique
+  stripePriceId          String   // active price ID
+  status                 SubscriptionStatus @default(TRIALING)
+  billingCycle           BillingCycle @default(MONTHLY)
+  currency               String   @default("INR")
+  currentPeriodStart     DateTime
+  currentPeriodEnd       DateTime
+  cancelAtPeriodEnd      Boolean  @default(false)
+  seatsUsed              Int      @default(1)
+  trialEndsAt            DateTime?
+  latestInvoiceUrl       String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  billingEvents BillingEvent[]
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  PAUSED
+}
+
+enum BillingCycle {
+  MONTHLY
+  YEARLY
+}
+
+model BillingEvent {
+  id                   String   @id @default(cuid())
+  tenantId             String
+  tenant               Tenant   @relation(fields: [tenantId], references: [id])
+  subscriptionId       String?
+  subscription         TenantSubscription? @relation(fields: [subscriptionId], references: [id])
+  type                 BillingEventType
+  amountInr            Decimal?
+  amountUsd            Decimal?
+  currency             String?
+  stripeEventId        String?  @unique // prevents duplicate processing
+  stripeInvoiceId      String?
+  metadata             Json?
+  createdAt            DateTime @default(now())
+}
+
+enum BillingEventType {
+  PAYMENT_SUCCESS
+  PAYMENT_FAILED
+  PLAN_CHANGED
+  SEAT_UPGRADE
+  SUBSCRIPTION_CANCELLED
+  SUBSCRIPTION_REACTIVATED
+  TRIAL_STARTED
+  TRIAL_ENDED
+  CREDIT_APPLIED
+  REFUND_ISSUED
+}
+
+model Coupon {
+  id             String   @id @default(cuid())
+  code           String   @unique
+  discountType   DiscountType
+  value          Decimal  // percent or fixed INR amount
+  maxUses        Int?     // null = unlimited
+  usedCount      Int      @default(0)
+  expiresAt      DateTime?
+  planIds        Json?    // null = applies to all plans
+  stripeCouponId String?  // Stripe coupon ID
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  redemptions CouponRedemption[]
+}
+
+enum DiscountType {
+  PERCENT
+  FIXED_INR
+  FIXED_USD
+}
+
+model CouponRedemption {
+  id                String   @id @default(cuid())
+  couponId          String
+  coupon            Coupon   @relation(fields: [couponId], references: [id])
+  tenantId          String
+  discountApplied   Decimal
+  stripeDiscountId  String?
+  redeemedAt        DateTime @default(now())
+}
+
+model ToolProduct {
+  id              String   @id @default(cuid())
+  name            String   // "Invoice Generator"
+  slug            String   @unique // "invoice", "esign", "email_campaign"
+  freeUsageLimit  Int      @default(5)
+  isActive        Boolean  @default(true)
+  description     String?
+
+  passes    ToolPassProduct[]
+}
+
+model ToolPassProduct {
+  id             String   @id @default(cuid())
+  toolProductId  String
+  toolProduct    ToolProduct @relation(fields: [toolProductId], references: [id])
+  name           String   // "Weekly pass", "Per invoice"
+  passType       PassType
+  usageLimit     Int?     // null = unlimited within window
+  priceInr       Decimal
+  priceUsd       Decimal
+  stripePriceId  String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  purchases ToolPassPurchase[]
+}
+
+enum PassType {
+  WEEKLY
+  MONTHLY
+  PER_USE
+}
+
+model ToolPassPurchase {
+  id                    String   @id @default(cuid())
+  toolUserId            String
+  toolUser              ToolUser @relation(fields: [toolUserId], references: [id], onDelete: Cascade)
+  toolPassProductId     String
+  toolPassProduct       ToolPassProduct @relation(fields: [toolPassProductId], references: [id])
+  stripePaymentIntentId String?
+  stripeSessionId       String?
+  status                PurchaseStatus @default(PENDING)
+  purchasedAt           DateTime?
+  expiresAt             DateTime?       // null for PER_USE
+  usageCount            Int      @default(0)
+  amountPaid            Decimal
+  currency              String
+  createdAt             DateTime @default(now())
+
+  credits StandaloneCredit[]
+}
+
+enum PurchaseStatus {
+  PENDING
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+model StandaloneCredit {
+  id                          String   @id @default(cuid())
+  toolUserId                  String
+  toolUser                    ToolUser @relation(fields: [toolUserId], references: [id], onDelete: Cascade)
+  toolPassPurchaseId          String
+  toolPassPurchase            ToolPassPurchase @relation(fields: [toolPassPurchaseId], references: [id], onDelete: Cascade)
+  originalAmount              Decimal
+  creditableAmount            Decimal  // pro-rated unused portion
+  status                      CreditStatus @default(PENDING)
+  appliedToSubscriptionId     String?
+  appliedAt                   DateTime?
+  expiresAt                   DateTime // purchase date + CompanyConfig.credit_window_days
+  stripeBalanceTransactionId  String?
+  createdAt                   DateTime @default(now())
+}
+
+enum CreditStatus {
+  PENDING
+  APPLIED
+  EXPIRED
 }

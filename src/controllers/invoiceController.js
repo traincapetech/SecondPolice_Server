@@ -14,6 +14,9 @@ exports.getInvoices = async (req, res, next) => {
     const { status } = req.query;
     const where = { tenantId: req.user.tenantId };
     if (status) where.status = status;
+    if (req.user.role !== 'ADMIN') {
+      where.deal = { assignedTo: req.user.id };
+    }
 
     // Auto-flip SENT invoices that are past due date to OVERDUE
     await prisma.invoice.updateMany({
@@ -38,8 +41,12 @@ exports.getInvoices = async (req, res, next) => {
 // GET /api/invoices/:id
 exports.getInvoice = async (req, res, next) => {
   try {
+    const where = { id: req.params.id, tenantId: req.user.tenantId };
+    if (req.user.role !== 'ADMIN') {
+      where.deal = { assignedTo: req.user.id };
+    }
     const invoice = await prisma.invoice.findFirst({
-      where: { id: req.params.id, tenantId: req.user.tenantId },
+      where,
       include: INVOICE_INCLUDE,
     });
     if (!invoice) return next(new AppError('Invoice not found.', 404));
@@ -50,8 +57,12 @@ exports.getInvoice = async (req, res, next) => {
 // GET /api/invoices/:id/pdf  — streams the PDF to browser
 exports.getInvoicePDF = async (req, res, next) => {
   try {
+    const where = { id: req.params.id, tenantId: req.user.tenantId };
+    if (req.user.role !== 'ADMIN') {
+      where.deal = { assignedTo: req.user.id };
+    }
     const invoice = await prisma.invoice.findFirst({
-      where: { id: req.params.id, tenantId: req.user.tenantId },
+      where,
       include: INVOICE_INCLUDE,
     });
     if (!invoice) return next(new AppError('Invoice not found.', 404));
@@ -74,8 +85,12 @@ exports.getInvoicePDF = async (req, res, next) => {
 // POST /api/invoices/:id/send  — generate PDF + email + flip to SENT
 exports.sendInvoice = async (req, res, next) => {
   try {
+    const where = { id: req.params.id, tenantId: req.user.tenantId };
+    if (req.user.role !== 'ADMIN') {
+      where.deal = { assignedTo: req.user.id };
+    }
     const invoice = await prisma.invoice.findFirst({
-      where: { id: req.params.id, tenantId: req.user.tenantId },
+      where,
     });
     if (!invoice) return next(new AppError('Invoice not found.', 404));
     if (invoice.status === 'PAID') return next(new AppError('This invoice is already paid.', 400));
@@ -103,8 +118,12 @@ exports.sendInvoice = async (req, res, next) => {
 // PATCH /api/invoices/:id  — update notes, dueDate, status (mark PAID/CANCELLED), clientEmail
 exports.updateInvoice = async (req, res, next) => {
   try {
+    const where = { id: req.params.id, tenantId: req.user.tenantId };
+    if (req.user.role !== 'ADMIN') {
+      where.deal = { assignedTo: req.user.id };
+    }
     const existing = await prisma.invoice.findFirst({
-      where: { id: req.params.id, tenantId: req.user.tenantId },
+      where,
     });
     if (!existing) return next(new AppError('Invoice not found.', 404));
 
@@ -146,8 +165,12 @@ exports.updateInvoice = async (req, res, next) => {
 // DELETE /api/invoices/:id  — only DRAFT invoices
 exports.deleteInvoice = async (req, res, next) => {
   try {
+    const where = { id: req.params.id, tenantId: req.user.tenantId };
+    if (req.user.role !== 'ADMIN') {
+      where.deal = { assignedTo: req.user.id };
+    }
     const existing = await prisma.invoice.findFirst({
-      where: { id: req.params.id, tenantId: req.user.tenantId },
+      where,
     });
     if (!existing) return next(new AppError('Invoice not found.', 404));
     if (existing.status !== 'DRAFT') return next(new AppError('Only DRAFT invoices can be deleted.', 400));
