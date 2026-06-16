@@ -59,7 +59,7 @@ const uploadExpenseProof = async ({ tenantId, userId, base64File, fileName, mime
  * Deletes a file from Supabase storage using S3 API.
  */
 const deleteExpenseProof = async (filePath) => {
-  if (!projectId || !SUPABASE_SERVICE_ROLE_KEY || !SUPABASE_EXPENSES_BUCKET || !filePath) {
+  if (!SUPABASE_S3_ACCESS_KEY || !SUPABASE_S3_SECRET_KEY || !SUPABASE_EXPENSES_BUCKET || !filePath) {
     return;
   }
 

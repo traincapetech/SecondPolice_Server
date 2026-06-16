@@ -15,7 +15,7 @@ exports.getEmployees = async (req, res, next) => {
 
     const where = { tenantId: req.user.tenantId };
     if (department) where.departmentId = department;
-    if (status)     where.employeeStatus = status;
+    if (status) where.employeeStatus = status;
     if (search) {
       where.user = {
         OR: [
@@ -64,7 +64,7 @@ exports.createEmployee = async (req, res, next) => {
       employeeCode, gender, dob, phone, address,
       emergencyContact, bloodGroup, joiningDate,
       probationEndDate, employmentType, workLocation,
-      employeeStatus, basicSalary,
+      employeeStatus, basicSalary, workScheduleType, workingDays, weeklyOffs, customFields
     } = req.body;
 
     if (!userId) return next(new AppError('userId is required', 400));
@@ -102,6 +102,10 @@ exports.createEmployee = async (req, res, next) => {
         workLocation: workLocation || 'OFFICE',
         employeeStatus: employeeStatus || 'ACTIVE',
         basicSalary: basicSalary ? parseFloat(basicSalary) : null,
+        workScheduleType: workScheduleType || 'FIXED',
+        workingDays: workingDays ? workingDays : undefined,
+        weeklyOffs: weeklyOffs !== undefined ? parseInt(weeklyOffs) : 2,
+        customFields: customFields || null,
       },
       include: EMPLOYEE_INCLUDE,
     });
@@ -128,17 +132,17 @@ exports.updateEmployee = async (req, res, next) => {
       employeeCode, gender, dob, phone, address,
       emergencyContact, bloodGroup, joiningDate,
       probationEndDate, employmentType, workLocation,
-      employeeStatus, basicSalary,
+      employeeStatus, basicSalary, workScheduleType, workingDays, weeklyOffs, customFields,
     } = req.body;
 
     const employee = await prisma.employeeProfile.update({
       where: { id },
       data: {
-        departmentId: departmentId ?? existing.departmentId,
-        designationId: designationId ?? existing.designationId,
-        managerId: managerId ?? existing.managerId,
+        departmentId: departmentId === '' ? null : (departmentId ?? existing.departmentId),
+        designationId: designationId === '' ? null : (designationId ?? existing.designationId),
+        managerId: managerId === '' ? null : (managerId ?? existing.managerId),
         employeeCode: employeeCode ?? existing.employeeCode,
-        gender: gender ?? existing.gender,
+        gender: gender === '' ? null : (gender ?? existing.gender),
         dob: dob ? new Date(dob) : existing.dob,
         phone: phone ?? existing.phone,
         address: address ?? existing.address,
@@ -150,6 +154,10 @@ exports.updateEmployee = async (req, res, next) => {
         workLocation: workLocation ?? existing.workLocation,
         employeeStatus: employeeStatus ?? existing.employeeStatus,
         basicSalary: basicSalary !== undefined ? parseFloat(basicSalary) : existing.basicSalary,
+        workScheduleType: workScheduleType ?? existing.workScheduleType,
+        workingDays: workingDays ?? existing.workingDays,
+        weeklyOffs: weeklyOffs !== undefined ? parseInt(weeklyOffs) : existing.weeklyOffs,
+        customFields: customFields !== undefined ? customFields : existing.customFields,
       },
       include: EMPLOYEE_INCLUDE,
     });

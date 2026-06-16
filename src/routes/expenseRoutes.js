@@ -7,6 +7,9 @@ const router = express.Router();
 
 router.use(authenticate);
 
+router.get('/analytics', expenseController.getExpenseAnalytics);
+
+
 router.get('/', expenseController.getExpenses);
 router.get('/:id', expenseController.getExpense);
 router.post('/', expenseController.createExpense);

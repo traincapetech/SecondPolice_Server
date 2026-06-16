@@ -42,7 +42,7 @@ exports.getProduct = async (req, res, next) => {
 /** POST /api/products */
 exports.createProduct = async (req, res, next) => {
   try {
-    const { name, sku, description, price, currency, isActive } = req.body;
+    const { name, sku, description, price, currency, isActive, customFields } = req.body;
 
     if (!name || price === undefined) {
       return next(new AppError('Product name and price are required', 400));
@@ -56,7 +56,8 @@ exports.createProduct = async (req, res, next) => {
         description,
         price: parseFloat(price),
         currency: currency || 'USD',
-        isActive: isActive !== undefined ? isActive : true
+        isActive: isActive !== undefined ? isActive : true,
+        ...(customFields !== undefined && { customFields })
       }
     });
 
@@ -72,7 +73,7 @@ exports.createProduct = async (req, res, next) => {
 /** PATCH /api/products/:id */
 exports.updateProduct = async (req, res, next) => {
   try {
-    const { name, sku, description, price, currency, isActive } = req.body;
+    const { name, sku, description, price, currency, isActive, customFields } = req.body;
 
     const existing = await prisma.product.findFirst({
       where: { id: req.params.id, tenantId: req.user.tenantId }
@@ -90,7 +91,8 @@ exports.updateProduct = async (req, res, next) => {
         description: description !== undefined ? description : existing.description,
         price: price !== undefined ? parseFloat(price) : existing.price,
         currency: currency || existing.currency,
-        isActive: isActive !== undefined ? isActive : existing.isActive
+        isActive: isActive !== undefined ? isActive : existing.isActive,
+        ...(customFields !== undefined && { customFields })
       }
     });
 

@@ -1,4 +1,5 @@
 const { z } = require('zod');
+const { name } = require('../lib/asyncContext');
 
 const addEmployeeSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -7,5 +8,8 @@ const addEmployeeSchema = z.object({
   role: z.enum(['ADMIN', 'EMPLOYEE']),
   customRoleId: z.string().uuid().optional()
 });
-
-module.exports = { addEmployeeSchema };
+const groupSchema = z.object({
+  name: z.string().min(1, 'Group identity name cannot be empty'),
+  participantIds: z.array(z.string().uuid()) 
+});
+module.exports = { addEmployeeSchema,groupSchema };

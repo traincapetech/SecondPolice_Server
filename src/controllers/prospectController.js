@@ -13,6 +13,7 @@ const PROSPECT_SELECT = {
   sourceDetail: true,
   status: true,
   priority: true,
+  customFields: true,
   detail: {
     select: {
       id: true,
@@ -105,7 +106,7 @@ exports.createProspect = async (req, res, next) => {
       source, sourceDetail, status, priority,
       name, email, phone, company, companySize, budget, currency,
       serviceInterest, requirements, lastContact, nextFollowup,
-      contactMethod, linkedin, notes
+      contactMethod, linkedin, notes, customFields
     } = req.body;
 
     if (!name) {
@@ -122,6 +123,7 @@ exports.createProspect = async (req, res, next) => {
           sourceDetail,
           status: status || 'NEW',
           priority: priority || 'MEDIUM',
+          ...(customFields !== undefined && { customFields }),
           detail: {
             create: {
               name,
@@ -198,7 +200,7 @@ exports.updateProspect = async (req, res, next) => {
       source, sourceDetail, status, priority,
       name, email, phone, company, companySize, budget, currency,
       serviceInterest, requirements, lastContact, nextFollowup,
-      contactMethod, linkedin, notes
+      contactMethod, linkedin, notes, customFields
     } = req.body;
 
     const updated = await prisma.$transaction(async (tx) => {
@@ -209,6 +211,7 @@ exports.updateProspect = async (req, res, next) => {
           sourceDetail,
           status,
           priority,
+          ...(customFields !== undefined && { customFields }),
           detail: {
             update: {
               name,

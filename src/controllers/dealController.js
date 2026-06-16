@@ -36,7 +36,7 @@ const getDeals = async (req, res, next) => {
 // POST /api/deals - Create a new deal
 const createDeal = async (req, res, next) => {
   try {
-    const { title, value, tokenAmount, stage, assignedTo, currency, contactPerson, company, email, phone } = req.body;
+    const { title, value, tokenAmount, stage, assignedTo, currency, contactPerson, company, email, phone, customFields } = req.body;
     if (!title) return next(new AppError('Deal title is required.', 400));
 
     const deal = await prisma.deal.create({
@@ -52,12 +52,12 @@ const createDeal = async (req, res, next) => {
         company,
         email,
         phone,
+        ...(customFields !== undefined && { customFields }),
       },
       include: { 
         user: { select: { id: true, name: true } },
         lead: true,
       },
-
     });
 
     res.status(201).json({ status: 'success', data: { deal } });
@@ -101,7 +101,7 @@ const updateDeal = async (req, res, next) => {
     });
     if (!existing) return next(new AppError('Deal not found or you do not have permission.', 404));
 
-    const { title, value, tokenAmount, stage, assignedTo, currency, contactPerson, company, email, phone } = req.body;
+    const { title, value, tokenAmount, stage, assignedTo, currency, contactPerson, company, email, phone, customFields } = req.body;
 
     const deal = await prisma.deal.update({
       where: { id },
@@ -117,12 +117,12 @@ const updateDeal = async (req, res, next) => {
         ...(company !== undefined && { company }),
         ...(email !== undefined && { email }),
         ...(phone !== undefined && { phone }),
+        ...(customFields !== undefined && { customFields }),
       },
       include: { 
         user: { select: { id: true, name: true } },
         lead: true,
       },
-
     });
 
     res.status(200).json({ status: 'success', data: { deal } });

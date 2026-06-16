@@ -1,14 +1,12 @@
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
+const prisma = require('./prisma');
 
 let _io = null;
 
-/**
- * Initialise Socket.IO, attach it to the http.Server,
- * wire up JWT authentication and per-user rooms.
- * Call this ONCE from server.js.
- */
 function initSocket(httpServer) {
+  if (_io) return _io;
+
   _io = new Server(httpServer, {
     cors: {
       origin: true,
@@ -16,57 +14,117 @@ function initSocket(httpServer) {
     },
   });
 
-  // ── Middleware: authenticate every socket connection via JWT ──────────────
+  // ─────────────────────────────────────────
+  // AUTH MIDDLEWARE
+  // ─────────────────────────────────────────
   _io.use(async (socket, next) => {
     try {
       const token = socket.handshake.auth?.token;
-      if (!token) return next(new Error('Authentication error: no token'));
+
+      if (!token) {
+        return next(new Error('No token'));
+      }
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      socket.userId   = decoded.userId;
-      socket.tenantId = decoded.tenantId;
 
-      // Dynamically require prisma to avoid circular dependency
-      const prisma = require('./prisma');
-      const user = await prisma.user.findUnique({
-        where: { id: decoded.userId },
-        select: { role: true }
-      });
-      socket.userRole = user?.role;
+      socket.userId = decoded.userId;
 
       next();
-    } catch {
-      next(new Error('Authentication error: invalid token'));
+    } catch (err) {
+      return next(new Error('Invalid token'));
     }
   });
 
-  // ── On connection: join the user's private room ───────────────────────────
+  // ─────────────────────────────────────────
+  // CONNECTION
+  // ─────────────────────────────────────────
   _io.on('connection', (socket) => {
-    const room = `user:${socket.userId}`;
-    socket.join(room);
-    console.log(`[Socket] ${socket.userId} connected → joined room "${room}"`);
 
-    if (socket.userRole === 'ADMIN') {
-      const adminRoom = `tenant:${socket.tenantId}:admin`;
-      socket.join(adminRoom);
-      console.log(`[Socket] ${socket.userId} (ADMIN) joined room "${adminRoom}"`);
-    }
+    const userRoom = `user:${socket.userId}`;
+    socket.join(userRoom);
 
-    socket.on('disconnect', (reason) => {
-      console.log(`[Socket] ${socket.userId} disconnected (${reason})`);
+    console.log(`[Socket] User connected: ${socket.userId}`);
+
+    // ─────────────────────────────────────────
+    // JOIN CONVERSATION
+    // ─────────────────────────────────────────
+    socket.on('joinConversation', (conversationId) => {
+      socket.join(`conversation:${conversationId}`);
+    });
+
+    // ─────────────────────────────────────────
+    // LEAVE CONVERSATION
+    // ─────────────────────────────────────────
+    socket.on('leaveConversation', (conversationId) => {
+      socket.leave(`conversation:${conversationId}`);
+    });
+
+    // ─────────────────────────────────────────
+    // SEND MESSAGE (FULL PRISMA FLOW)
+    // ─────────────────────────────────────────
+    socket.on('sendMessage', async ({ conversationId, content }) => {
+      try {
+
+        // 1. Validate user is participant
+        const participant = await prisma.conversationParticipant.findFirst({
+          where: {
+            conversationId,
+            userId: socket.userId
+          }
+        });
+
+        if (!participant) return;
+
+        // 2. Create message (MATCH YOUR SCHEMA)
+        const message = await prisma.message.create({
+          data: {
+            conversationId,
+            senderId: socket.userId,
+            content
+          },
+          include: {
+            sender: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
+          }
+        });
+
+        // 3. Update conversation timestamp (important for sorting)
+        await prisma.conversation.update({
+          where: { id: conversationId },
+          data: {
+            createdAt: new Date() // (schema has no lastMessageAt, so reuse createdAt)
+          }
+        });
+         
+        // 4. Emit to room
+        _io.to(`conversation:${conversationId}`).emit(
+          'newMessage',
+          message
+        );
+      } catch (err) {
+        console.log('[sendMessage error]', err.message);
+      }
+    });
+
+    socket.on('disconnect', () => {
+      console.log(`[Socket] disconnected: ${socket.userId}`);
     });
   });
 
   return _io;
 }
 
-/**
- * Returns the Socket.IO server instance.
- * Throws if initSocket() has not been called yet.
- */
 function getIO() {
-  if (!_io) throw new Error('[Socket] io not initialised — call initSocket() first');
+  if (!_io) throw new Error('Socket not initialized');
   return _io;
 }
 
-module.exports = { initSocket, getIO };
+module.exports = {
+  initSocket,
+  getIO
+};

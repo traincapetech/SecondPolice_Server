@@ -45,6 +45,7 @@ const LEAD_SELECT = {
   address: true, city: true, state: true, pinCode: true, country: true, gstin: true,
   source: true, status: true, priority: true,
   estimatedValue: true, currency: true, interestedProduct: true, notes: true,
+  customFields: true,
   createdAt: true, updatedAt: true,
   assignedTo: { select: { id: true, name: true, email: true } },
   createdBy: { select: { id: true, name: true } },
@@ -117,6 +118,7 @@ exports.createLead = async (req, res, next) => {
       address, city, state, pinCode, country, gstin,
       source, status, priority, estimatedValue, currency, interestedProduct, notes,
       assignedToId: explicitAssigneeId,
+       customFields
     } = req.body;
 
     if (!firstName) return next(new AppError('First name is required', 400));
@@ -147,6 +149,7 @@ exports.createLead = async (req, res, next) => {
         currency: currency || 'USD',
         interestedProduct,
         notes,
+        customFields: customFields ? (typeof customFields === 'string' ? JSON.parse(customFields) : customFields) : undefined,
         assignedToId: assignee?.id ?? null,
         createdById: req.user.id,
       },
@@ -206,7 +209,7 @@ exports.updateLead = async (req, res, next) => {
     const {
       firstName, lastName, email, phone, company, jobTitle,
       address, city, state, pinCode, country, gstin,
-      source, status, priority, estimatedValue, currency, interestedProduct, notes, assignedToId,
+      source, status, priority, estimatedValue, currency, interestedProduct, notes, assignedToId, customFields
     } = req.body;
 
     const lead = await prisma.lead.update({
@@ -231,6 +234,7 @@ exports.updateLead = async (req, res, next) => {
         currency:       currency       ?? existing.currency,
         interestedProduct: interestedProduct !== undefined ? interestedProduct : existing.interestedProduct,
         notes:          notes          ?? existing.notes,
+        customFields:   customFields !== undefined ? (typeof customFields === 'string' ? JSON.parse(customFields) : customFields) : existing.customFields,
         assignedToId:   assignedToId   !== undefined ? assignedToId : existing.assignedToId,
       },
       select: LEAD_SELECT,

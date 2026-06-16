@@ -28,7 +28,6 @@ const signToken = (userId, tenantId, role) => {
 const registerTenant = async (data) => {
   const { companyName, name, password } = data;
   const email = data.email.toLowerCase().trim();
-
   // 1. Block if a verified account already exists
   const existingUser = await prisma.user.findUnique({ where: { email } });
   if (existingUser) {
@@ -49,7 +48,7 @@ const registerTenant = async (data) => {
 
   // 4. Send OTP email
   try {
-    await sendEmail(
+    await sendEmail( 
       email, name,
       'Verify Your Workspace Account',
       `<p>Hi ${name},</p><p>Your verification code is: <strong>${otp}</strong></p><p>This code expires in 10 minutes.</p>`
@@ -78,7 +77,6 @@ const login = async (emailRaw, password) => {
     where: { email },
     include: { tenant: true }
   });
-
   if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
     throw new AppError('Incorrect email or password!', 401);
   }

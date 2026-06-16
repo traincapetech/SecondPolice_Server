@@ -141,7 +141,7 @@ const resendOTP = async (req, res, next) => {
 const getMe = async (req, res, next) => {
   try {
     let user = req.user;   // has workspaceId now (fixed in auth middleware)
-
+  
     // Always attach companyName for the client
     const tenant = await prisma.tenant.findUnique({ where: { id: user.tenantId } });
     const companyName = tenant.name;

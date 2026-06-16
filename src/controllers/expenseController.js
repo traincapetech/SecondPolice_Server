@@ -326,10 +326,91 @@ const deleteExpense = async (req, res, next) => {
   }
 };
 
+const EXCHANGE_RATES = {
+  USD: 1,
+  EUR: 0.92,
+  GBP: 0.79,
+  INR: 83.5,
+  AED: 3.67,
+  JPY: 154.5,
+  CAD: 1.37,
+  AUD: 1.52,
+  SGD: 1.36,
+  SAR: 3.75
+};
+
+// GET /api/expenses/analytics
+const getExpenseAnalytics = async (req, res, next) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const targetCurrency = req.query.currency || 'USD';
+
+    // Get current month boundaries
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+    const where = {
+      tenantId,
+      spentAt: { gte: startOfMonth, lte: endOfMonth },
+      status: 'APPROVED',
+    };
+
+    if (req.user.role !== 'ADMIN') {
+      where.userId = req.user.id;
+    }
+
+    const expenses = await prisma.expense.findMany({
+      where,
+      select: { id: true, category: true, amount: true, currency: true }
+    });
+
+    const categoryMap = {};
+    let totalSpent = 0;
+
+    expenses.forEach(exp => {
+      const cat = exp.category || 'Uncategorized';
+      if (!categoryMap[cat]) {
+        categoryMap[cat] = { spent: 0, count: 0 };
+      }
+
+      const expRate = EXCHANGE_RATES[exp.currency || 'USD'] || 1;
+      const targetRate = EXCHANGE_RATES[targetCurrency] || 1;
+      
+      const amountInTarget = (exp.amount / expRate) * targetRate;
+
+      categoryMap[cat].spent += amountInTarget;
+      categoryMap[cat].count += 1;
+      totalSpent += amountInTarget;
+    });
+
+    const analytics = Object.keys(categoryMap).map(cat => ({
+      category: cat,
+      spent: categoryMap[cat].spent,
+      count: categoryMap[cat].count,
+    }));
+
+    analytics.sort((a, b) => b.spent - a.spent);
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        analytics,
+        summary: {
+          totalSpent,
+        }
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getExpenses,
   getExpense,
   createExpense,
   updateExpense,
   deleteExpense,
+  getExpenseAnalytics,
 };

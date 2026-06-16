@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const prisma = require('./lib/prisma');
 
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
@@ -29,6 +30,7 @@ const hrOrgRoutes = require('./routes/hrOrgRoutes');
 const hrEmployeeRoutes = require('./routes/hrEmployeeRoutes');
 const hrAttendanceRoutes = require('./routes/hrAttendanceRoutes');
 const hrLeaveRoutes = require('./routes/hrLeaveRoutes');
+const hrPayrollRoutes = require('./routes/hrPayrollRoutes');
 const expenseRoutes = require('./routes/expenseRoutes');
 const billingRoutes = require('./routes/billingRoutes');
 const pricingRoutes = require('./routes/pricingRoutes');
@@ -36,6 +38,9 @@ const toolPricingRoutes = require('./routes/toolPricingRoutes');
 const webhookRoutes = require('./routes/webhookRoutes');
 const superAdminRoutes = require('./routes/superAdminRoutes');
 const subscriptionCronRoutes = require('./routes/subscriptionCronRoutes');
+const customFieldRoutes = require('./routes/customFieldRoutes');
+const chatRoutes = require('./routes/chatRoutes');
+
 const { authenticate } = require('./middlewares/authMiddleware');
 const { subscriptionGate } = require('./middlewares/subscriptionGate');
 
@@ -68,7 +73,7 @@ app.use('/api/webhooks/stripe', webhookRoutes);
 
 app.use(express.json({ limit: '10mb' }));
 app.use(morgan('dev'));
-
+app.use('/api/chat', chatRoutes);
 // Apply subscription gate to all protected routes
 // Skips paths that don't need a subscription check
 app.use('/api', (req, res, next) => {
@@ -115,16 +120,22 @@ app.use('/api/hr', hrOrgRoutes);
 app.use('/api/hr/employees', hrEmployeeRoutes);
 app.use('/api/hr/attendance', hrAttendanceRoutes);
 app.use('/api/hr/leaves', hrLeaveRoutes);
+app.use('/api/hr/payroll', hrPayrollRoutes);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/pricing', pricingRoutes);
 app.use('/api/pricing/tools', toolPricingRoutes);
 app.use('/api/superadmin', superAdminRoutes);
 app.use('/api/cron', subscriptionCronRoutes);
-
+app.use('/api/custom-fields', customFieldRoutes);
 // Health check
-app.get('/api/health', (req, res) => {
-  res.status(200).json({ status: 'success', message: 'API is running' });
+app.get('/api/health', async (req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.status(200).json({ status: 'success', message: 'API is running and database is connected' });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: 'Database connection failed', error: error.message });
+  }
 });
 
 // 404
@@ -136,5 +147,3 @@ app.use((req, res, next) => {
 app.use(globalErrorHandler);
 
 module.exports = app;
-
-

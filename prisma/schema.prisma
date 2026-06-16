@@ -6,8 +6,6 @@ datasource db {
   provider = "postgresql"
 }
 
-// Temporarily holds registration data until email is verified.
-// Deleted once OTP is confirmed and the real Tenant+User are created.
 model PendingRegistration {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -22,127 +20,861 @@ model PendingRegistration {
 }
 
 model Tenant {
-  id                String         @id @default(uuid())
-  name              String
-  domain            String?        @unique
-  createdAt         DateTime       @default(now())
-  leadAssigneeIndex Int            @default(0)
-  displayCurrency   String         @default("USD")
-  taxRate           Float          @default(0)
-  companyProfile    Json?          // { businessCategory, address, city, state, pinCode, country, gstin, pan, companyEmail, companyPhone, logoUrl }
-  users             User[]
-  customers         Customer[]
-  deals             Deal[]
-  activities        Activity[]
-  customRoles       CustomRole[]
-  leads             Lead[]
-  notifications     Notification[]
-  invoices          Invoice[]
-  prospects         ProspectMeta[]
-  products          Product[]
-  expenses          Expense[]
-  systemActivities  SystemActivity[]
-  announcements     Announcement[]
-  departments       Department[]
-  designations      Designation[]
-  employeeProfiles  EmployeeProfile[]
-  attendances       Attendance[]
-  leaveRequests     LeaveRequest[]
-
-  // SaaS Billing additions
-  stripeCustomerId     String?
-  subscriptionId       String?   // FK to TenantSubscription
-  subscription         TenantSubscription?
-  seatLimit            Int       @default(5)
-  billingEvents        BillingEvent[]
+  id                     String                  @id @default(uuid())
+  name                   String
+  domain                 String?                 @unique
+  createdAt              DateTime                @default(now())
+  leadAssigneeIndex      Int                     @default(0)
+  displayCurrency        String                  @default("USD")
+  taxRate                Float                   @default(0)
+  companyProfile         Json?
+  seatLimit              Int                     @default(5)
+  stripeCustomerId       String?
+  subscriptionId         String?
+  activities             Activity[]
+  announcements          Announcement[]
+  attendances            Attendance[]
+  billingEvents          BillingEvent[]
+  customFieldDefinitions CustomFieldDefinition[]
+  customRoles            CustomRole[]
+  customers              Customer[]
+  deals                  Deal[]
+  departments            Department[]
+  designations           Designation[]
+  employeeProfiles       EmployeeProfile[]
+  expenses               Expense[]
+  invoices               Invoice[]
+  leads                  Lead[]
+  leaveRequests          LeaveRequest[]
+  notifications          Notification[]
+  payslips               Payslip[]
+  products               Product[]
+  prospects              ProspectMeta[]
+  salaryStructures       SalaryStructure[]
+  systemActivities       SystemActivity[]
+  subscription           TenantSubscription?
+  users                  User[]
 }
 
 model User {
-  id           String         @id @default(uuid())
-  tenantId     String
-  tenant       Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  name         String
-  email        String         @unique
-  passwordHash    String
-  isEmailVerified Boolean        @default(false)
-  otp             String?
-  otpExpiry       DateTime?
-  role            Role           @default(EMPLOYEE)
-  workspaceId     String?        @unique
-  createdAt       DateTime       @default(now())
-  nextSalaryReimbursement Float  @default(0) // Added for expense claim reimbursements
-  deals        Deal[]
-  activities   Activity[]
-  notifications Notification[]
-  systemActivities SystemActivity[]
-  announcements Announcement[]
-  employeeProfile  EmployeeProfile?
-  managedEmployees EmployeeProfile[] @relation("EmployeeManager")
-  customRoleId String?
-  customRole   CustomRole?    @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
-  assignedLeads Lead[]        @relation("LeadAssignee")
-  createdLeads  Lead[]        @relation("LeadCreator")
-  createdProspects ProspectMeta[] @relation("ProspectCreator")
-  expenses      Expense[]
-  pushSubscriptions PushSubscription[]
-  toolUser      ToolUser?
-  fcmToken      String?
-  approvedLeaves LeaveRequest[] @relation("LeaveApprover")
-
-  // SaaS Billing additions
-  stripeCustomerId     String?   // for standalone users without an org
-
+  id                      String                    @id @default(uuid())
+  tenantId                String
+  name                    String
+  email                   String                    @unique
+  passwordHash            String
+  role                    Role                      @default(EMPLOYEE)
+  createdAt               DateTime                  @default(now())
+  customRoleId            String?
+  isEmailVerified         Boolean                   @default(false)
+  otp                     String?
+  otpExpiry               DateTime?
+  workspaceId             String?                   @unique
+  fcmToken                String?
+  nextSalaryReimbursement Float                     @default(0)
+  stripeCustomerId        String?
+  activities              Activity[]
+  announcements           Announcement[]
+  deals                   Deal[]
+  managedEmployees        EmployeeProfile[]         @relation("EmployeeManager")
+  employeeProfile         EmployeeProfile?
+  expenses                Expense[]
+  assignedLeads           Lead[]                    @relation("LeadAssignee")
+  createdLeads            Lead[]                    @relation("LeadCreator")
+  approvedLeaves          LeaveRequest[]            @relation("LeaveApprover")
+  notifications           Notification[]
+  createdProspects        ProspectMeta[]            @relation("ProspectCreator")
+  pushSubscriptions       PushSubscription[]
+  systemActivities        SystemActivity[]
+  toolUser                ToolUser?
+  messages                Message[]
+  participants            ConversationParticipant[]
+  customRole              CustomRole?               @relation(fields: [customRoleId], references: [id])
+  tenant                  Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversation            Conversation[]
   @@index([tenantId])
 }
 
 model Customer {
-  id         String     @id @default(uuid())
-  tenantId   String
-  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  name       String
-  email      String?
-  phone      String?
-  address    String?
-  city       String?
-  state      String?
-  pinCode    String?
-  country    String?
-  gstin      String?
-  status     String     @default("LEAD")
-  createdAt  DateTime   @default(now())
-  activities Activity[]
-  expenses   Expense[]
+  id           String     @id @default(uuid())
+  tenantId     String
+  name         String
+  email        String?
+  phone        String?
+  status       String     @default("LEAD")
+  createdAt    DateTime   @default(now())
+  address      String?
+  city         String?
+  country      String?
+  gstin        String?
+  pinCode      String?
+  state        String?
+  customFields Json?
+  activities   Activity[]
+  tenant       Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  expenses     Expense[]
 
   @@index([tenantId])
 }
 
 model Expense {
-  id            String   @id @default(uuid())
+  id            String        @id @default(uuid())
   tenantId      String
-  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   userId        String
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   customerId    String?
-  customer      Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
   title         String
   description   String?
   category      String?
   amount        Float
-  currency      Currency @default(USD)
+  currency      Currency      @default(USD)
   status        ExpenseStatus @default(PENDING)
-  spentAt       DateTime @default(now())
+  spentAt       DateTime      @default(now())
   proofUrl      String?
   proofPath     String?
   proofFileName String?
   proofMimeType String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  customer      Customer?     @relation(fields: [customerId], references: [id])
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
   @@index([userId])
   @@index([customerId])
   @@index([spentAt])
   @@index([status])
+}
+
+model Deal {
+  id            String     @id @default(uuid())
+  tenantId      String
+  title         String
+  value         Float
+  stage         String     @default("LEAD")
+  assignedTo    String?
+  createdAt     DateTime   @default(now())
+  currency      String     @default("USD")
+  leadId        String?    @unique
+  company       String?
+  contactPerson String?
+  email         String?
+  phone         String?
+  tokenAmount   Float      @default(0)
+  customFields  Json?
+  activities    Activity[]
+  user          User?      @relation(fields: [assignedTo], references: [id])
+  lead          Lead?      @relation(fields: [leadId], references: [id])
+  tenant        Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  invoice       Invoice?
+
+  @@index([tenantId])
+  @@index([leadId])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  tenantId  String
+  userId    String
+  type      String
+  title     String
+  body      String
+  linkUrl   String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tenantId])
+}
+
+model Activity {
+  id          String       @id @default(uuid())
+  tenantId    String
+  type        ActivityType @default(TASK)
+  title       String
+  notes       String?
+  dueDate     DateTime?
+  completedAt DateTime?
+  customerId  String?
+  dealId      String?
+  userId      String
+  createdAt   DateTime     @default(now())
+  customer    Customer?    @relation(fields: [customerId], references: [id])
+  deal        Deal?        @relation(fields: [dealId], references: [id])
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([customerId])
+  @@index([dealId])
+  @@index([userId])
+}
+
+model SystemActivity {
+  id         String   @id @default(uuid())
+  tenantId   String
+  userId     String?
+  action     String
+  entityType String
+  entityId   String
+  details    String?
+  createdAt  DateTime @default(now())
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user       User?    @relation(fields: [userId], references: [id])
+
+  @@index([tenantId])
+  @@index([createdAt])
+}
+
+model Announcement {
+  id        String   @id @default(uuid())
+  tenantId  String
+  title     String
+  content   String
+  authorId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([createdAt])
+}
+
+model Department {
+  id          String            @id @default(uuid())
+  tenantId    String
+  name        String
+  code        String?
+  description String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  tenant      Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employees   EmployeeProfile[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+model Designation {
+  id          String            @id @default(uuid())
+  tenantId    String
+  title       String
+  level       Int               @default(1)
+  description String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  tenant      Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employees   EmployeeProfile[]
+
+  @@unique([tenantId, title])
+  @@index([tenantId])
+}
+
+model EmployeeProfile {
+  id               String           @id @default(uuid())
+  tenantId         String
+  userId           String           @unique
+  departmentId     String?
+  designationId    String?
+  managerId        String?
+  employeeCode     String?
+  gender           String?
+  dob              DateTime?
+  phone            String?
+  address          String?
+  emergencyContact String?
+  bloodGroup       String?
+  joiningDate      DateTime?
+  probationEndDate DateTime?
+  employmentType   String           @default("FULL_TIME")
+  workLocation     String           @default("OFFICE")
+  employeeStatus   String           @default("ACTIVE")
+  basicSalary      Float?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  customFields     Json?
+  weeklyOffs       Int              @default(2)
+  workScheduleType WorkScheduleType @default(FIXED)
+  workingDays      Json?
+  attendances      Attendance[]
+  department       Department?      @relation(fields: [departmentId], references: [id])
+  designation      Designation?     @relation(fields: [designationId], references: [id])
+  manager          User?            @relation("EmployeeManager", fields: [managerId], references: [id])
+  tenant           Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leaveRequests    LeaveRequest[]   @relation("EmployeeLeaves")
+  payslips         Payslip[]
+  salaryStructure  SalaryStructure?
+
+  @@index([tenantId])
+  @@index([departmentId])
+  @@index([managerId])
+}
+
+model CustomFieldDefinition {
+  id         String  @id @default(uuid())
+  tenantId   String
+  entityType String
+  fieldName  String
+  fieldLabel String
+  fieldType  String
+  isRequired Boolean @default(false)
+  options    Json?
+  tenant     Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, entityType, fieldName])
+  @@index([tenantId])
+}
+
+model Invoice {
+  id             String        @id @default(uuid())
+  tenantId       String
+  dealId         String        @unique
+  invoiceNo      String
+  clientName     String
+  clientEmail    String?
+  amount         Float
+  currency       String        @default("USD")
+  taxRate        Float         @default(0)
+  taxAmount      Float         @default(0)
+  totalAmount    Float
+  dueDate        DateTime
+  status         InvoiceStatus @default(DRAFT)
+  sentAt         DateTime?
+  paidAt         DateTime?
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  clientAddress  String?
+  clientCity     String?
+  clientCountry  String?
+  clientGstin    String?
+  clientPhone    String?
+  clientPinCode  String?
+  clientState    String?
+  creditNote     String?
+  sacCode        String?       @default("998313")
+  subtotalAmount Float?
+  taxConfigId    String?
+  deal           Deal          @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  tenant         Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([status])
+}
+
+model CustomRole {
+  id          String   @id @default(uuid())
+  tenantId    String
+  name        String
+  permissions Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  users       User[]
+
+  @@index([tenantId])
+}
+
+model Lead {
+  id                String       @id @default(uuid())
+  tenantId          String
+  firstName         String
+  lastName          String?
+  email             String?
+  phone             String?
+  company           String?
+  jobTitle          String?
+  source            LeadSource   @default(OTHER)
+  status            LeadStatus   @default(NEW)
+  priority          LeadPriority @default(MEDIUM)
+  estimatedValue    Float?
+  notes             String?
+  assignedToId      String?
+  createdById       String
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  currency          String       @default("USD")
+  interestedProduct String?
+  address           String?
+  city              String?
+  country           String?
+  gstin             String?
+  pinCode           String?
+  state             String?
+  deal              Deal?
+  assignedTo        User?        @relation("LeadAssignee", fields: [assignedToId], references: [id])
+  createdBy         User         @relation("LeadCreator", fields: [createdById], references: [id])
+  tenant            Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([assignedToId])
+  @@index([createdById])
+}
+
+model ProspectMeta {
+  id           String           @id @default(uuid())
+  tenantId     String
+  createdById  String
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  source       String?
+  sourceDetail String?
+  status       ProspectStatus   @default(NEW)
+  priority     ProspectPriority @default(MEDIUM)
+  customFields Json?
+  detail       ProspectDetail?
+  createdBy    User             @relation("ProspectCreator", fields: [createdById], references: [id])
+  tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([createdById])
+}
+
+model ProspectDetail {
+  id              String                @id @default(uuid())
+  prospectMetaId  String                @unique
+  name            String
+  email           String?
+  phone           String?
+  company         String?
+  companySize     String?
+  budget          Float?
+  serviceInterest String?
+  requirements    String?
+  lastContact     DateTime?
+  nextFollowup    DateTime?
+  linkedin        String?
+  notes           String?
+  currency        Currency              @default(USD)
+  contactMethod   ProspectContactMethod @default(EMAIL)
+  prospectMeta    ProspectMeta          @relation(fields: [prospectMetaId], references: [id], onDelete: Cascade)
+}
+
+model Product {
+  id           String   @id @default(uuid())
+  tenantId     String
+  name         String
+  sku          String?
+  description  String?
+  price        Float
+  currency     Currency @default(USD)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  customFields Json?
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model ToolUser {
+  id            String              @id @default(uuid())
+  sessionId     String?             @unique
+  email         String?             @unique
+  passwordHash  String?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  crmUserId     String?             @unique
+  credits       StandaloneCredit[]
+  invoices      StandaloneInvoice[]
+  passPurchases ToolPassPurchase[]
+  purchases     ToolPurchase[]
+  usages        ToolUsage[]
+  crmUser       User?               @relation(fields: [crmUserId], references: [id])
+}
+
+model ToolUsage {
+  id         String   @id @default(uuid())
+  toolUserId String
+  tool       String
+  usageCount Int      @default(0)
+  period     String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  toolUser   ToolUser @relation(fields: [toolUserId], references: [id], onDelete: Cascade)
+
+  @@index([toolUserId])
+}
+
+model ToolPurchase {
+  id         String    @id @default(uuid())
+  toolUserId String
+  tool       String
+  type       String
+  currency   String    @default("INR")
+  amount     Float
+  status     String    @default("COMPLETED")
+  expiresAt  DateTime?
+  createdAt  DateTime  @default(now())
+  toolUser   ToolUser  @relation(fields: [toolUserId], references: [id], onDelete: Cascade)
+
+  @@index([toolUserId])
+}
+
+model StandaloneInvoice {
+  id                     String    @id @default(uuid())
+  toolUserId             String
+  invoiceNo              String
+  clientName             String
+  clientEmail            String?
+  clientAddress          String?
+  amount                 Float
+  currency               String    @default("INR")
+  taxRate                Float     @default(0)
+  taxAmount              Float     @default(0)
+  totalAmount            Float
+  dueDate                DateTime?
+  items                  Json
+  notes                  String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  senderAddress          String?
+  senderEmail            String?
+  senderName             String?
+  clientPhone            String?
+  senderBusinessCategory String?
+  senderGstin            String?
+  senderPan              String?
+  senderPhone            String?
+  invoiceDate            DateTime  @default(now())
+  logoUrl                String?
+  templateId             String    @default("basic")
+  clientGstin            String?
+  clientPan              String?
+  toolUser               ToolUser  @relation(fields: [toolUserId], references: [id], onDelete: Cascade)
+
+  @@index([toolUserId])
+}
+
+model ScheduledEmail {
+  id          String    @id @default(cuid())
+  tenantId    String
+  createdById String
+  to          String
+  toName      String    @default("")
+  subject     String
+  htmlBody    String
+  scheduledAt DateTime
+  status      String    @default("PENDING")
+  sentAt      DateTime?
+  errorMsg    String?
+  createdAt   DateTime  @default(now())
+
+  @@index([tenantId])
+  @@index([status, scheduledAt])
+}
+
+model Campaign {
+  id          String              @id @default(cuid())
+  tenantId    String
+  createdById String
+  name        String
+  subject     String
+  htmlBody    String
+  status      String              @default("DRAFT")
+  scheduledAt DateTime?
+  totalSent   Int                 @default(0)
+  totalFailed Int                 @default(0)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  recipients  CampaignRecipient[]
+
+  @@index([tenantId])
+}
+
+model CampaignRecipient {
+  id         String    @id @default(cuid())
+  campaignId String
+  email      String
+  name       String?
+  entityType String?
+  entityId   String?
+  status     String    @default("PENDING")
+  errorMsg   String?
+  sentAt     DateTime?
+  campaign   Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([status])
+}
+
+model Attendance {
+  id                String          @id @default(uuid())
+  tenantId          String
+  employeeProfileId String
+  date              DateTime
+  checkIn           DateTime?
+  checkOut          DateTime?
+  totalHours        Float?
+  overtimeHours     Float           @default(0)
+  status            String          @default("PRESENT")
+  workMode          String          @default("OFFICE")
+  remarks           String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  employeeProfile   EmployeeProfile @relation(fields: [employeeProfileId], references: [id], onDelete: Cascade)
+  tenant            Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([employeeProfileId])
+  @@index([date])
+}
+
+model LeaveRequest {
+  id                String          @id @default(uuid())
+  tenantId          String
+  employeeProfileId String
+  leaveType         String
+  startDate         DateTime
+  endDate           DateTime
+  totalDays         Float
+  reason            String
+  status            String          @default("PENDING")
+  approvedById      String?
+  managerRemarks    String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  approvedBy        User?           @relation("LeaveApprover", fields: [approvedById], references: [id])
+  employeeProfile   EmployeeProfile @relation("EmployeeLeaves", fields: [employeeProfileId], references: [id], onDelete: Cascade)
+  tenant            Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([employeeProfileId])
+}
+
+model SalaryStructure {
+  id                String          @id @default(uuid())
+  tenantId          String
+  employeeProfileId String          @unique
+  basicPay          Float
+  hra               Float           @default(0)
+  conveyance        Float           @default(0)
+  medicalAllowance  Float           @default(0)
+  specialAllowance  Float           @default(0)
+  providentFund     Float           @default(0)
+  professionalTax   Float           @default(0)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  employeeProfile   EmployeeProfile @relation(fields: [employeeProfileId], references: [id], onDelete: Cascade)
+  tenant            Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+model Payslip {
+  id                String          @id @default(uuid())
+  tenantId          String
+  employeeProfileId String
+  month             Int
+  year              Int
+  basicPay          Float
+  allowances        Json
+  deductions        Json
+  reimbursements    Float           @default(0)
+  netPay            Float
+  status            String          @default("DRAFT")
+  pdfUrl            String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  employeeProfile   EmployeeProfile @relation(fields: [employeeProfileId], references: [id], onDelete: Cascade)
+  tenant            Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([employeeProfileId])
+  @@index([month, year])
+}
+
+model PricingPlan {
+  id            String               @id @default(cuid())
+  name          String
+  slug          String               @unique
+  description   String?
+  isActive      Boolean              @default(true)
+  sortOrder     Int                  @default(0)
+  features      Json
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  seatTiers     SeatTier[]
+  subscriptions TenantSubscription[]
+}
+
+model SeatTier {
+  id                   String               @id @default(cuid())
+  planId               String
+  label                String
+  minSeats             Int
+  maxSeats             Int
+  baseAmountInr        Decimal
+  baseAmountUsd        Decimal
+  yearlyAmountInr      Decimal
+  yearlyAmountUsd      Decimal
+  stripePriceIdMonthly String?
+  stripePriceIdYearly  String?
+  isActive             Boolean              @default(true)
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  plan                 PricingPlan          @relation(fields: [planId], references: [id])
+  subscriptions        TenantSubscription[]
+}
+
+model TaxConfig {
+  id            String   @id @default(cuid())
+  name          String
+  region        String
+  taxType       String
+  rate          Decimal
+  isActive      Boolean  @default(true)
+  effectiveFrom DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model CompanyConfig {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+model TenantSubscription {
+  id                   String             @id @default(cuid())
+  tenantId             String             @unique
+  planId               String
+  seatTierId           String
+  stripeCustomerId     String
+  stripeSubscriptionId String             @unique
+  stripePriceId        String
+  status               SubscriptionStatus @default(TRIALING)
+  billingCycle         BillingCycle       @default(MONTHLY)
+  currency             String             @default("INR")
+  currentPeriodStart   DateTime
+  currentPeriodEnd     DateTime
+  cancelAtPeriodEnd    Boolean            @default(false)
+  seatsUsed            Int                @default(1)
+  trialEndsAt          DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  latestInvoiceUrl     String?
+  billingEvents        BillingEvent[]
+  plan                 PricingPlan        @relation(fields: [planId], references: [id])
+  seatTier             SeatTier           @relation(fields: [seatTierId], references: [id])
+  tenant               Tenant             @relation(fields: [tenantId], references: [id])
+}
+
+model BillingEvent {
+  id              String              @id @default(cuid())
+  tenantId        String
+  subscriptionId  String?
+  type            BillingEventType
+  amountInr       Decimal?
+  amountUsd       Decimal?
+  currency        String?
+  stripeEventId   String?             @unique
+  stripeInvoiceId String?
+  metadata        Json?
+  createdAt       DateTime            @default(now())
+  subscription    TenantSubscription? @relation(fields: [subscriptionId], references: [id])
+  tenant          Tenant              @relation(fields: [tenantId], references: [id])
+}
+
+model Coupon {
+  id             String             @id @default(cuid())
+  code           String             @unique
+  discountType   DiscountType
+  value          Decimal
+  maxUses        Int?
+  usedCount      Int                @default(0)
+  expiresAt      DateTime?
+  planIds        Json?
+  stripeCouponId String?
+  isActive       Boolean            @default(true)
+  createdAt      DateTime           @default(now())
+  redemptions    CouponRedemption[]
+}
+
+model CouponRedemption {
+  id               String   @id @default(cuid())
+  couponId         String
+  tenantId         String
+  discountApplied  Decimal
+  stripeDiscountId String?
+  redeemedAt       DateTime @default(now())
+  coupon           Coupon   @relation(fields: [couponId], references: [id])
+}
+
+model ToolProduct {
+  id             String            @id @default(cuid())
+  name           String
+  slug           String            @unique
+  freeUsageLimit Int               @default(5)
+  isActive       Boolean           @default(true)
+  description    String?
+  passes         ToolPassProduct[]
+}
+
+model ToolPassProduct {
+  id            String             @id @default(cuid())
+  toolProductId String
+  name          String
+  passType      PassType
+  usageLimit    Int?
+  priceInr      Decimal
+  priceUsd      Decimal
+  stripePriceId String?
+  isActive      Boolean            @default(true)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  toolProduct   ToolProduct        @relation(fields: [toolProductId], references: [id])
+  purchases     ToolPassPurchase[]
+}
+
+model ToolPassPurchase {
+  id                    String             @id @default(cuid())
+  toolUserId            String
+  toolPassProductId     String
+  stripePaymentIntentId String?
+  stripeSessionId       String?
+  status                PurchaseStatus     @default(PENDING)
+  purchasedAt           DateTime?
+  expiresAt             DateTime?
+  usageCount            Int                @default(0)
+  amountPaid            Decimal
+  currency              String
+  createdAt             DateTime           @default(now())
+  credits               StandaloneCredit[]
+  toolPassProduct       ToolPassProduct    @relation(fields: [toolPassProductId], references: [id])
+  toolUser              ToolUser           @relation(fields: [toolUserId], references: [id], onDelete: Cascade)
+}
+
+model StandaloneCredit {
+  id                         String           @id @default(cuid())
+  toolUserId                 String
+  toolPassPurchaseId         String
+  originalAmount             Decimal
+  creditableAmount           Decimal
+  status                     CreditStatus     @default(PENDING)
+  appliedToSubscriptionId    String?
+  appliedAt                  DateTime?
+  expiresAt                  DateTime
+  stripeBalanceTransactionId String?
+  createdAt                  DateTime         @default(now())
+  toolPassPurchase           ToolPassPurchase @relation(fields: [toolPassPurchaseId], references: [id], onDelete: Cascade)
+  toolUser                   ToolUser         @relation(fields: [toolUserId], references: [id], onDelete: Cascade)
 }
 
 enum ExpenseStatus {
@@ -152,191 +884,16 @@ enum ExpenseStatus {
   REJECTED
 }
 
-model Deal {
-  id         String     @id @default(uuid())
-  tenantId   String
-  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  title      String
-  value      Float
-  tokenAmount Float      @default(0)
-  currency   String     @default("USD")
-  stage      String     @default("LEAD")
-  assignedTo String?
-  user       User?      @relation(fields: [assignedTo], references: [id], onDelete: SetNull)
-  leadId     String?    @unique   // nullable; set when auto-created from a Lead conversion
-  lead       Lead?      @relation(fields: [leadId], references: [id], onDelete: SetNull)
-  
-  // Standalone contact info (for deals not linked to leads)
-  contactPerson String?
-  company       String?
-  email         String?
-  phone         String?
-
-  createdAt  DateTime   @default(now())
-  activities Activity[]
-  invoice    Invoice?
-
-  @@index([tenantId])
-  @@index([leadId])
-}
-
-model Notification {
-  id        String   @id @default(uuid())
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type      String   // e.g. LEAD_ASSIGNED
-  title     String
-  body      String
-  linkUrl   String?
-  isRead    Boolean  @default(false)
-  createdAt DateTime @default(now())
-
-  @@index([userId])
-  @@index([tenantId])
-}
-
-model Activity {
-  id          String       @id @default(uuid())
-  tenantId    String
-  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  type        ActivityType @default(TASK)
-  title       String
-  notes       String?
-  dueDate     DateTime?
-  completedAt DateTime?
-  customerId  String?
-  customer    Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  dealId      String?
-  deal        Deal?        @relation(fields: [dealId], references: [id], onDelete: SetNull)
-  userId      String
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt   DateTime     @default(now())
-
-  @@index([tenantId])
-  @@index([customerId])
-  @@index([dealId])
-  @@index([userId])
-}
-
-model SystemActivity {
-  id          String   @id @default(uuid())
-  tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  userId      String?
-  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  action      String
-  entityType  String
-  entityId    String
-  details     String?  @db.Text
-  createdAt   DateTime @default(now())
-
-  @@index([tenantId])
-  @@index([createdAt])
-}
-
-model Announcement {
-  id          String   @id @default(uuid())
-  tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  title       String
-  content     String   @db.Text
-  authorId    String
-  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@index([tenantId])
-  @@index([createdAt])
-}
-
 enum Role {
-  SUPERADMIN
   ADMIN
-  MANAGER
   EMPLOYEE
+  MANAGER
+  SUPERADMIN
 }
 
-// ============================================================================
-// HRMS MODULE — Phase 1: Foundation & Employee Management
-// ============================================================================
-
-model Department {
-  id          String            @id @default(uuid())
-  tenantId    String
-  tenant      Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  name        String
-  code        String?
-  description String?
-  employees   EmployeeProfile[]
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
-
-  @@unique([tenantId, name])
-  @@index([tenantId])
-}
-
-model Designation {
-  id          String            @id @default(uuid())
-  tenantId    String
-  tenant      Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  title       String
-  level       Int               @default(1)  // 1=Junior … 5=Senior/Lead
-  description String?
-  employees   EmployeeProfile[]
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
-
-  @@unique([tenantId, title])
-  @@index([tenantId])
-}
-
-model EmployeeProfile {
-  id              String       @id @default(uuid())
-  tenantId        String
-  tenant          Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  // 1-to-1 link to User (auth, email, name live there)
-  userId          String       @unique
-  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // Hierarchy
-  departmentId    String?
-  department      Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
-  designationId   String?
-  designation     Designation? @relation(fields: [designationId], references: [id], onDelete: SetNull)
-  managerId       String?      // points to another EmployeeProfile.userId
-  manager         User?        @relation("EmployeeManager", fields: [managerId], references: [id], onDelete: SetNull)
-
-  // Personal info
-  employeeCode    String?      // e.g. EMP-0001
-  gender          String?
-  dob             DateTime?
-  phone           String?
-  address         String?
-  emergencyContact String?
-  bloodGroup      String?
-
-  // Employment info
-  joiningDate     DateTime?
-  probationEndDate DateTime?
-  employmentType  String       @default("FULL_TIME")  // FULL_TIME | PART_TIME | CONTRACT | INTERN
-  workLocation    String       @default("OFFICE")    // OFFICE | REMOTE | HYBRID
-  employeeStatus  String       @default("ACTIVE")    // ACTIVE | PROBATION | NOTICE_PERIOD | TERMINATED
-
-  // Salary (basic; detailed structure comes in Phase 3)
-  basicSalary     Float?
-
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-
-  attendances     Attendance[]
-  leaveRequests   LeaveRequest[] @relation("EmployeeLeaves")
-
-  @@index([tenantId])
-  @@index([departmentId])
-  @@index([managerId])
+enum WorkScheduleType {
+  FIXED
+  ROTATING
 }
 
 enum ActivityType {
@@ -352,101 +909,6 @@ enum InvoiceStatus {
   PAID
   OVERDUE
   CANCELLED
-}
-
-model Invoice {
-  id          String        @id @default(uuid())
-  tenantId    String
-  tenant      Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  dealId      String        @unique
-  deal        Deal          @relation(fields: [dealId], references: [id], onDelete: Cascade)
-  invoiceNo   String
-  clientName  String
-  clientEmail String?
-  clientPhone String?
-  clientAddress String?
-  clientCity  String?
-  clientState String?
-  clientPinCode String?
-  clientCountry String?
-  clientGstin String?
-  amount      Float
-  currency    String        @default("USD")
-  taxRate     Float         @default(0)
-  taxAmount   Float         @default(0)
-  totalAmount Float
-  dueDate     DateTime
-  status      InvoiceStatus @default(DRAFT)
-  sentAt      DateTime?
-  paidAt      DateTime?
-  notes       String?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-
-  // SaaS Billing additions
-  taxConfigId          String?
-  sacCode              String?   @default("998313")
-  subtotalAmount       Float?
-  creditNote           String?
-
-  @@index([tenantId])
-  @@index([status])
-}
-
-model CustomRole {
-  id          String   @id @default(uuid())
-  tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  name        String
-  permissions Json
-  users       User[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@index([tenantId])
-}
-
-model Lead {
-  id             String       @id @default(uuid())
-  tenantId       String
-  tenant         Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  // Contact info
-  firstName      String
-  lastName       String?
-  email          String?
-  phone          String?
-  company        String?
-  jobTitle       String?
-  address        String?
-  city           String?
-  state          String?
-  pinCode        String?
-  country        String?
-  gstin          String?
-
-  // Lead details
-  source         LeadSource   @default(OTHER)
-  status         LeadStatus   @default(NEW)
-  priority       LeadPriority @default(MEDIUM)
-  estimatedValue Float?
-  currency       String       @default("USD")
-  interestedProduct String?
-  notes          String?
-
-  // Assignment
-  assignedToId   String?
-  assignedTo     User?        @relation("LeadAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
-  createdById    String
-  createdBy      User         @relation("LeadCreator", fields: [createdById], references: [id])
-
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  deal           Deal?                        // auto-created deal when converted
-
-  @@index([tenantId])
-  @@index([assignedToId])
-  @@index([createdById])
 }
 
 enum LeadSource {
@@ -467,51 +929,13 @@ enum LeadStatus {
   UNQUALIFIED
   CONVERTED
   LOST
-  CONVERTED_DEAL // Added to distinguish converted from just qualified
+  CONVERTED_DEAL
 }
 
 enum LeadPriority {
   LOW
   MEDIUM
   HIGH
-}
-
-model ProspectMeta {
-  id             String         @id @default(uuid())
-  tenantId       String
-  tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  createdById    String
-  createdBy      User           @relation("ProspectCreator", fields: [createdById], references: [id])
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  source         String?
-  sourceDetail   String?
-  status         ProspectStatus   @default(NEW)
-  priority       ProspectPriority @default(MEDIUM)
-  detail         ProspectDetail?
-
-  @@index([tenantId])
-  @@index([createdById])
-}
-
-model ProspectDetail {
-  id              String       @id @default(uuid())
-  prospectMetaId  String       @unique
-  prospectMeta    ProspectMeta @relation(fields: [prospectMetaId], references: [id], onDelete: Cascade)
-  name            String
-  email           String?
-  phone           String?
-  company         String?
-  companySize     String?
-  budget          Float?
-  currency        Currency             @default(USD)
-  serviceInterest String?
-  requirements    String?
-  lastContact     DateTime?
-  nextFollowup    DateTime?
-  contactMethod   ProspectContactMethod @default(EMAIL)
-  linkedin        String?
-  notes           String?
 }
 
 enum ProspectStatus {
@@ -549,323 +973,6 @@ enum Currency {
   SAR
 }
 
-model Product {
-  id          String   @id @default(uuid())
-  tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  name        String
-  sku         String?
-  description String?
-  price       Float
-  currency    Currency @default(USD)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@index([tenantId])
-}
-
-// Stores browser Web Push subscriptions (one per browser/device per user)
-model PushSubscription {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  endpoint  String   @unique   // browser push service URL — unique per device
-  p256dh    String             // encryption key
-  auth      String             // auth secret
-  createdAt DateTime @default(now())
-
-  @@index([userId])
-}
-
-// ============================================================================
-// MICRO-PRODUCT / STANDALONE TOOLS LAYER
-// ============================================================================
-
-model ToolUser {
-  id           String   @id @default(uuid())
-  sessionId    String?  @unique // For anonymous usage tracking
-  email        String?  @unique // Nullable if they haven't logged in yet
-  passwordHash String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  usages       ToolUsage[]
-  purchases    ToolPurchase[]
-  invoices     StandaloneInvoice[]
-  
-  // New billing relation
-  passPurchases ToolPassPurchase[]
-  credits       StandaloneCredit[]
-
-  // Optional link to CRM User if they convert later
-  crmUserId    String?  @unique
-  crmUser      User?    @relation(fields: [crmUserId], references: [id])
-}
-
-model ToolUsage {
-  id         String   @id @default(uuid())
-  toolUserId String
-  toolUser   ToolUser @relation(fields: [toolUserId], references: [id], onDelete: Cascade)
-  tool       String   // e.g. "INVOICE"
-  usageCount Int      @default(0)
-  period     String?  // e.g. "LIFETIME", "WEEKLY", "MONTHLY"
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@index([toolUserId])
-}
-
-model ToolPurchase {
-  id         String   @id @default(uuid())
-  toolUserId String
-  toolUser   ToolUser @relation(fields: [toolUserId], references: [id], onDelete: Cascade)
-  tool       String   // e.g. "INVOICE"
-  type       String   // e.g. "WEEKLY_PASS", "PER_INVOICE"
-  currency   String   @default("INR")
-  amount     Float
-  status     String   @default("COMPLETED")
-  expiresAt  DateTime?
-  createdAt  DateTime @default(now())
-
-  @@index([toolUserId])
-}
-
-model StandaloneInvoice {
-  id            String   @id @default(uuid())
-  toolUserId    String
-  toolUser      ToolUser @relation(fields: [toolUserId], references: [id], onDelete: Cascade)
-  
-  invoiceNo     String
-  clientName    String
-  clientEmail   String?
-  clientAddress String?
-  
-  senderName             String?
-  senderEmail            String?
-  senderAddress          String?
-  senderPhone            String?
-  senderGstin            String?
-  senderPan              String?
-  senderBusinessCategory String?
-  logoUrl                String?
-
-  clientPhone   String?
-
-  amount        Float
-  currency      String   @default("INR")
-  taxRate       Float    @default(0)
-  taxAmount     Float    @default(0)
-  totalAmount   Float
-  dueDate       DateTime?
-  
-  items         Json     // Array of invoice items
-  notes         String?
-  
-  templateId    String   @default("basic")
-  invoiceDate   DateTime @default(now())
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  @@index([toolUserId])
-}
-
-// Stores emails that should be delivered at a future scheduled time.
-// Picked up by POST /api/jobs/run-scheduled-emails every minute (via cron-job.org).
-model ScheduledEmail {
-  id          String    @id @default(cuid())
-  tenantId    String
-  createdById String                        // user who scheduled it
-  to          String                        // recipient email address
-  toName      String    @default("")
-  subject     String
-  htmlBody    String    @db.Text
-  scheduledAt DateTime                      // when to deliver
-  status      String    @default("PENDING") // PENDING | SENT | FAILED | CANCELLED
-  sentAt      DateTime?
-  errorMsg    String?
-  createdAt   DateTime  @default(now())
-
-  @@index([tenantId])
-  @@index([status, scheduledAt])
-}
-
-model Campaign {
-  id          String   @id @default(cuid())
-  tenantId    String
-  createdById String
-  name        String   // Internal name
-  subject     String   // Email subject
-  htmlBody    String   @db.Text
-  status      String   @default("DRAFT") // DRAFT, SENDING, SENT, SCHEDULED
-  scheduledAt DateTime?
-  
-  totalSent   Int      @default(0)
-  totalFailed Int      @default(0)
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  recipients  CampaignRecipient[]
-
-  @@index([tenantId])
-}
-
-model CampaignRecipient {
-  id         String   @id @default(cuid())
-  campaignId String
-  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  
-  email      String
-  name       String?
-  
-  entityType String?  // "LEAD" or "CUSTOMER"
-  entityId   String?
-  
-  status     String   @default("PENDING") // PENDING, SENT, FAILED
-  errorMsg   String?
-  sentAt     DateTime?
-
-  @@index([campaignId])
-  @@index([status])
-}
-
-// ─── HRMS PHASE 2: ATTENDANCE & LEAVES ────────────────────────────────────
-
-model Attendance {
-  id                String          @id @default(uuid())
-  tenantId          String
-  tenant            Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  employeeProfileId String
-  employeeProfile   EmployeeProfile @relation(fields: [employeeProfileId], references: [id], onDelete: Cascade)
-  
-  date              DateTime        // The calendar date of this record (normalized to start of day)
-  checkIn           DateTime?       // Actual check-in timestamp
-  checkOut          DateTime?       // Actual check-out timestamp
-  totalHours        Float?          // Calculated hours between checkIn and checkOut
-  overtimeHours     Float           @default(0)
-  status            String          @default("PRESENT") // PRESENT, ABSENT, HALF_DAY, LEAVE, HOLIDAY
-  workMode          String          @default("OFFICE")  // OFFICE, REMOTE
-  remarks           String?
-  
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-
-  @@index([tenantId])
-  @@index([employeeProfileId])
-  @@index([date])
-}
-
-model LeaveRequest {
-  id                String          @id @default(uuid())
-  tenantId          String
-  tenant            Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  employeeProfileId String
-  employeeProfile   EmployeeProfile @relation("EmployeeLeaves", fields: [employeeProfileId], references: [id], onDelete: Cascade)
-  
-  leaveType         String          // CASUAL, SICK, EARNED, UNPAID, MATERNITY
-  startDate         DateTime
-  endDate           DateTime
-  totalDays         Float
-  reason            String
-  status            String          @default("PENDING") // PENDING, APPROVED, REJECTED
-  
-  approvedById      String?
-  approvedBy        User?           @relation("LeaveApprover", fields: [approvedById], references: [id], onDelete: SetNull)
-  managerRemarks    String?
-  
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-
-  @@index([tenantId])
-  @@index([employeeProfileId])
-}
-
-// ─── NEW SAAS BILLING & SUBSCRIPTION MODELS ─────────────────────────────────
-
-model PricingPlan {
-  id           String      @id @default(cuid())
-  name         String      // "Starter", "Pro", "Enterprise"
-  slug         String      @unique // "starter", "pro", "enterprise"
-  description  String?
-  isActive     Boolean     @default(true)
-  sortOrder    Int         @default(0)
-  features     Json        // string[] shown on pricing page
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
-
-  seatTiers    SeatTier[]
-  subscriptions TenantSubscription[]
-}
-
-model SeatTier {
-  id                    String   @id @default(cuid())
-  planId                String
-  plan                  PricingPlan @relation(fields: [planId], references: [id])
-  label                 String   // "1–5 users", "6–10 users"
-  minSeats              Int
-  maxSeats              Int      // 999 for unlimited
-  baseAmountInr         Decimal  // display price — change here, no redeploy
-  baseAmountUsd         Decimal
-  yearlyAmountInr       Decimal  // yearly price (usually 10x monthly)
-  yearlyAmountUsd       Decimal
-  stripePriceIdMonthly  String?  // set after creating Price in Stripe
-  stripePriceIdYearly   String?
-  isActive              Boolean  @default(true)
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-
-  subscriptions TenantSubscription[]
-}
-
-model TaxConfig {
-  id            String   @id @default(cuid())
-  name          String   // "India GST", "International"
-  region        String   // "INR", "USD", "EUR", "ALL"
-  taxType       String   // "GST", "VAT", "NONE"
-  rate          Decimal  // 0.18 for 18%
-  isActive      Boolean  @default(true)
-  effectiveFrom DateTime @default(now())
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-}
-
-model CompanyConfig {
-  id        String   @id @default(cuid())
-  key       String   @unique
-  value     String
-  updatedAt DateTime @updatedAt
-  // seed rows: company_gstin, company_name, company_address,
-  // company_pan, company_sac_code (998313), support_email,
-  // invoice_prefix, credit_window_days (30), credit_cap_percent (100)
-}
-
-model TenantSubscription {
-  id                     String   @id @default(cuid())
-  tenantId               String   @unique
-  tenant                 Tenant   @relation(fields: [tenantId], references: [id])
-  planId                 String
-  plan                   PricingPlan @relation(fields: [planId], references: [id])
-  seatTierId             String
-  seatTier               SeatTier @relation(fields: [seatTierId], references: [id])
-  stripeCustomerId       String
-  stripeSubscriptionId   String   @unique
-  stripePriceId          String   // active price ID
-  status                 SubscriptionStatus @default(TRIALING)
-  billingCycle           BillingCycle @default(MONTHLY)
-  currency               String   @default("INR")
-  currentPeriodStart     DateTime
-  currentPeriodEnd       DateTime
-  cancelAtPeriodEnd      Boolean  @default(false)
-  seatsUsed              Int      @default(1)
-  trialEndsAt            DateTime?
-  latestInvoiceUrl       String?
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
-
-  billingEvents BillingEvent[]
-}
-
 enum SubscriptionStatus {
   TRIALING
   ACTIVE
@@ -877,22 +984,6 @@ enum SubscriptionStatus {
 enum BillingCycle {
   MONTHLY
   YEARLY
-}
-
-model BillingEvent {
-  id                   String   @id @default(cuid())
-  tenantId             String
-  tenant               Tenant   @relation(fields: [tenantId], references: [id])
-  subscriptionId       String?
-  subscription         TenantSubscription? @relation(fields: [subscriptionId], references: [id])
-  type                 BillingEventType
-  amountInr            Decimal?
-  amountUsd            Decimal?
-  currency             String?
-  stripeEventId        String?  @unique // prevents duplicate processing
-  stripeInvoiceId      String?
-  metadata             Json?
-  createdAt            DateTime @default(now())
 }
 
 enum BillingEventType {
@@ -908,89 +999,16 @@ enum BillingEventType {
   REFUND_ISSUED
 }
 
-model Coupon {
-  id             String   @id @default(cuid())
-  code           String   @unique
-  discountType   DiscountType
-  value          Decimal  // percent or fixed INR amount
-  maxUses        Int?     // null = unlimited
-  usedCount      Int      @default(0)
-  expiresAt      DateTime?
-  planIds        Json?    // null = applies to all plans
-  stripeCouponId String?  // Stripe coupon ID
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-
-  redemptions CouponRedemption[]
-}
-
 enum DiscountType {
   PERCENT
   FIXED_INR
   FIXED_USD
 }
 
-model CouponRedemption {
-  id                String   @id @default(cuid())
-  couponId          String
-  coupon            Coupon   @relation(fields: [couponId], references: [id])
-  tenantId          String
-  discountApplied   Decimal
-  stripeDiscountId  String?
-  redeemedAt        DateTime @default(now())
-}
-
-model ToolProduct {
-  id              String   @id @default(cuid())
-  name            String   // "Invoice Generator"
-  slug            String   @unique // "invoice", "esign", "email_campaign"
-  freeUsageLimit  Int      @default(5)
-  isActive        Boolean  @default(true)
-  description     String?
-
-  passes    ToolPassProduct[]
-}
-
-model ToolPassProduct {
-  id             String   @id @default(cuid())
-  toolProductId  String
-  toolProduct    ToolProduct @relation(fields: [toolProductId], references: [id])
-  name           String   // "Weekly pass", "Per invoice"
-  passType       PassType
-  usageLimit     Int?     // null = unlimited within window
-  priceInr       Decimal
-  priceUsd       Decimal
-  stripePriceId  String?
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  purchases ToolPassPurchase[]
-}
-
 enum PassType {
   WEEKLY
   MONTHLY
   PER_USE
-}
-
-model ToolPassPurchase {
-  id                    String   @id @default(cuid())
-  toolUserId            String
-  toolUser              ToolUser @relation(fields: [toolUserId], references: [id], onDelete: Cascade)
-  toolPassProductId     String
-  toolPassProduct       ToolPassProduct @relation(fields: [toolPassProductId], references: [id])
-  stripePaymentIntentId String?
-  stripeSessionId       String?
-  status                PurchaseStatus @default(PENDING)
-  purchasedAt           DateTime?
-  expiresAt             DateTime?       // null for PER_USE
-  usageCount            Int      @default(0)
-  amountPaid            Decimal
-  currency              String
-  createdAt             DateTime @default(now())
-
-  credits StandaloneCredit[]
 }
 
 enum PurchaseStatus {
@@ -1000,24 +1018,40 @@ enum PurchaseStatus {
   CANCELLED
 }
 
-model StandaloneCredit {
-  id                          String   @id @default(cuid())
-  toolUserId                  String
-  toolUser                    ToolUser @relation(fields: [toolUserId], references: [id], onDelete: Cascade)
-  toolPassPurchaseId          String
-  toolPassPurchase            ToolPassPurchase @relation(fields: [toolPassPurchaseId], references: [id], onDelete: Cascade)
-  originalAmount              Decimal
-  creditableAmount            Decimal  // pro-rated unused portion
-  status                      CreditStatus @default(PENDING)
-  appliedToSubscriptionId     String?
-  appliedAt                   DateTime?
-  expiresAt                   DateTime // purchase date + CompanyConfig.credit_window_days
-  stripeBalanceTransactionId  String?
-  createdAt                   DateTime @default(now())
-}
-
 enum CreditStatus {
   PENDING
   APPLIED
   EXPIRED
+}
+
+model Conversation {
+  id        String   @id @default(uuid())
+  isGroup   Boolean  @default(false)
+  adminId   String?
+  name      String?
+  createdAt DateTime @default(now())
+  participants ConversationParticipant[]
+  messages     Message[]
+  user         User?         @relation(fields: [adminId], references: [id], onDelete: Cascade)
+}
+
+model ConversationParticipant {
+  id             String @id @default(uuid())
+  conversationId String
+  userId         String
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([conversationId, userId])
+}
+
+model Message {
+  id             String   @id @default(uuid())
+  conversationId String
+  senderId       String
+  content        String
+  isRead         Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
 }

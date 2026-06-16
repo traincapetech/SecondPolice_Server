@@ -1,5 +1,6 @@
 const prisma = require('../lib/prisma');
 const { generateInvoicePDF } = require('../utils/pdfGenerator');
+const { generateInvoicePDF: generateSubscriptionPDF } = require('../utils/invoiceGenerator');
 const emailService = require('../utils/emailService');
 const creditService = require('./standaloneCreditService');
 
@@ -139,12 +140,81 @@ async function handleInvoicePaid(invoice) {
     }
   });
 
-  // 3. Generate PDF and Email (TODO: Implement PDF attachment in emailService)
+  // 3. Generate PDF and Email (GST-compliant subscription invoice)
   console.log(`📑 Invoice ${localInvoice.invoiceNo} generated for ${tenant.name}`);
-  // try {
-  //   const pdfPath = await generateInvoicePDF(localInvoice);
-  //   await emailService.sendInvoiceEmail(tenant.companyProfile.companyEmail, pdfPath);
-  // } catch (e) { console.error('Failed to send invoice email:', e.message); }
+  try {
+    const admin = await prisma.user.findFirst({
+      where: { tenantId, role: 'ADMIN' }
+    });
+    const toEmail = admin?.email || tenant.companyProfile?.companyEmail || '';
+    const toName = admin?.name || tenant.name || 'Subscriber';
+
+    if (toEmail) {
+      const sub = await prisma.tenantSubscription.findUnique({
+        where: { tenantId },
+        include: { plan: true, seatTier: true }
+      });
+
+      if (sub && sub.plan) {
+        const pdfBuffer = await generateSubscriptionPDF(sub, tenant);
+        const base64PDF = pdfBuffer.toString('base64');
+        
+        const subject = `Tax Invoice & Payment Confirmation: ${sub.plan.name} Plan`;
+        const htmlContent = `
+          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+            <div style="text-align: center; margin-bottom: 24px;">
+              <div style="display: inline-block; padding: 12px; background-color: #ecfdf5; border-radius: 16px; margin-bottom: 8px;">
+                <span style="font-size: 32px;">🎉</span>
+              </div>
+              <h2 style="color: #0f172a; margin: 0; font-size: 24px; font-weight: 800;">Subscription Payment Confirmed!</h2>
+              <p style="color: #64748b; margin: 4px 0 0 0; font-size: 14px;">Thank you for your payment.</p>
+            </div>
+            
+            <div style="background-color: #f8fafc; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+              <h4 style="color: #475569; margin: 0 0 12px 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Order Details</h4>
+              <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                <tr>
+                  <td style="padding: 6px 0; color: #64748b;">Plan Name</td>
+                  <td style="padding: 6px 0; color: #0f172a; font-weight: bold; text-align: right;">${sub.plan.name}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 6px 0; color: #64748b;">Billing Cycle</td>
+                  <td style="padding: 6px 0; color: #0f172a; font-weight: bold; text-align: right; text-transform: capitalize;">${sub.billingCycle.toLowerCase()}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 6px 0; color: #64748b;">Amount Paid</td>
+                  <td style="padding: 6px 0; color: #10b981; font-weight: bold; text-align: right;">
+                    ${sub.currency === 'INR' ? '₹' : '$'}${localInvoice.totalAmount.toFixed(2)}
+                  </td>
+                </tr>
+              </table>
+            </div>
+            
+            <p style="color: #475569; font-size: 14px; line-height: 1.5; margin: 0 0 20px 0;">
+              We have automatically generated your GST-compliant tax invoice for this transaction. You will find it attached as a PDF to this email for your accounts and bookkeeping.
+            </p>
+            
+            <div style="border-top: 1px solid #e2e8f0; padding-top: 16px; text-align: center;">
+              <p style="color: #94a3b8; font-size: 12px; margin: 0;">
+                Sent automatically by Second Police CRM. If you have any billing queries, please contact support.
+              </p>
+            </div>
+          </div>
+        `;
+
+        await emailService.sendEmail(
+          toEmail,
+          toName,
+          subject,
+          htmlContent,
+          [{ name: `invoice-${localInvoice.invoiceNo}.pdf`, content: base64PDF }]
+        );
+        console.log(`✉️ Subscription invoice emailed successfully to ${toEmail}`);
+      }
+    }
+  } catch (e) {
+    console.error('Failed to send invoice email from webhook:', e.message);
+  }
 }
 
 async function handleSubscriptionDeleted(subscription) {

@@ -72,7 +72,7 @@ const getCustomers = async (req, res, next) => {
 // POST /api/customers - Create a new customer
 const createCustomer = async (req, res, next) => {
   try {
-    const { name, phone, status, address, city, state, pinCode, country, gstin } = req.body;
+    const { name, phone, status, address, city, state, pinCode, country, gstin, customFields } = req.body;
     const email = req.body.email ? req.body.email.toLowerCase().trim() : null;
     if (!name) return next(new AppError('Customer name is required.', 400));
 
@@ -89,6 +89,7 @@ const createCustomer = async (req, res, next) => {
         country: country || null,
         gstin: gstin || null,
         status: status || 'LEAD',
+        customFields: customFields || null,
       },
     });
 
@@ -122,7 +123,7 @@ const createCustomer = async (req, res, next) => {
 const updateCustomer = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { name, phone, status, address, city, state, pinCode, country, gstin } = req.body;
+    const { name, phone, status, address, city, state, pinCode, country, gstin, customFields } = req.body;
     const email = req.body.email != null ? req.body.email.toLowerCase().trim() : undefined;
 
     // Check if it's a real customer
@@ -133,7 +134,7 @@ const updateCustomer = async (req, res, next) => {
     if (existing) {
       const customer = await prisma.customer.update({
         where: { id },
-        data: { name, email, phone, status, address, city, state, pinCode, country, gstin },
+        data: { name, email, phone, status, address, city, state, pinCode, country, gstin, customFields },
       });
       return res.status(200).json({ status: 'success', data: { customer } });
     }
