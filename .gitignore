@@ -1,6 +1,5 @@
 node_modules
 # Keep environment variables out of version control
-.env
 
 /generated/prisma
 ./config/second-police-cfc4d590a7fb.json
@@ -12,3 +11,5 @@ temp_interactive_push.bat
 
 localhost.pem
 localhost-key.pem
+.gitignore
+config.bat
