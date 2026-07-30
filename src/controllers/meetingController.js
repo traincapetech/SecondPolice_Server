@@ -3,6 +3,56 @@ const { createNotification } = require('../services/notificationService');
 const { getIO } = require('../lib/socket');
 const AppError = require('../utils/appError');
 
+const axios = require('axios');
+
+const daily = axios.create({
+  baseURL: 'https://api.daily.co/v1',
+  headers: {
+    Authorization: `Bearer ${process.env.DAILY_API_KEY}`,
+    'Content-Type': 'application/json',
+  },
+});
+
+// Creates a Daily.co room. Returns the room object.
+// Daily rooms are identified by name — same as our roomName.
+const createDailyRoom = async (roomName) => {
+  const res = await daily.post('/rooms', {
+    name: roomName,
+    privacy: 'private',       // token required to join
+    properties: {
+      enable_chat: true,
+      enable_screenshare: true,
+      enable_recording: false,
+      exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24, // expires in 24h
+    },
+  });
+  return res.data;
+};
+
+// Deletes a Daily.co room by name. Safe to call even if it doesn't exist.
+const deleteDailyRoom = async (roomName) => {
+  try {
+    await daily.delete(`/rooms/${roomName}`);
+  } catch (_) {
+    // Ignore — room may have already been auto-deleted
+  }
+};
+
+// Generates a Daily.co meeting token for a participant.
+// isOwner: true = host/moderator, false = guest
+const createDailyToken = async (roomName, userId, userName, isOwner) => {
+  const res = await daily.post('/meeting-tokens', {
+    properties: {
+      room_name: roomName,
+      user_id: userId,
+      user_name: userName,
+      is_owner: isOwner,
+      exp: Math.floor(Date.now() / 1000) + 60 * 60, // 1 hour
+    },
+  });
+  return res.data.token;
+};
+
 // Create a meeting
 exports.createMeeting = async (req, res, next) => {
   try {
@@ -44,6 +94,9 @@ exports.createMeeting = async (req, res, next) => {
         await prisma.meeting.delete({ where: { roomName: finalRoomName } });
       }
     }
+
+    // Create the room on Daily.co
+    await createDailyRoom(finalRoomName);
 
     // Start a transaction to create meeting and invitations
     const meeting = await prisma.meeting.create({
@@ -318,6 +371,9 @@ exports.endMeeting = async (req, res, next) => {
       data: { endedAt: new Date() }
     });
 
+    // Delete the room from Daily.co so the name can be reused
+    await deleteDailyRoom(roomName);
+
     // Notify all participants in real-time via Socket.IO
     try {
       getIO().to(`meeting:${roomName}`).emit('meetingEnded', { roomName });
@@ -328,6 +384,48 @@ exports.endMeeting = async (req, res, next) => {
     res.status(200).json({
       status: 'success',
       data: { meeting: updatedMeeting }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getMeetingToken = async (req, res, next) => {
+  try {
+    const { roomName } = req.query;
+    const user = req.user;
+
+    if (!roomName) {
+      return next(new AppError('roomName query param is required', 400));
+    }
+
+    const meeting = await prisma.meeting.findUnique({
+      where: { roomName },
+    });
+
+    if (!meeting) {
+      return next(new AppError('Meeting not found', 404));
+    }
+
+    if (meeting.endedAt) {
+      return next(new AppError('This meeting has already ended', 400));
+    }
+
+    const isOwner = meeting.hostId === user.id;
+
+    const token = await createDailyToken(
+      roomName,
+      user.id,
+      user.name,
+      isOwner
+    );
+
+    const domain = process.env.DAILY_DOMAIN;
+    const roomUrl = `https://${domain}.daily.co/${roomName}`;
+
+    res.status(200).json({
+      status: 'success',
+      data: { token, roomUrl, isOwner },
     });
   } catch (err) {
     next(err);
