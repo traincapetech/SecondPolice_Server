@@ -1,14 +1,32 @@
 const express = require('express');
 const router = express.Router();
+
 const customFieldController = require('../controllers/customFieldController');
 const { authenticate, restrictTo } = require('../middlewares/authMiddleware');
 
+// Every route requires authentication
 router.use(authenticate);
-router.use(restrictTo('SUPERADMIN', 'ADMIN')); // Only admins can manage custom fields
 
+// Any authenticated user can fetch custom field definitions
 router.get('/:entityType', customFieldController.getCustomFields);
-router.post('/', customFieldController.createCustomField);
-router.put('/:id', customFieldController.updateCustomField);
-router.delete('/:id', customFieldController.deleteCustomField);
+
+// Only SUPERADMIN / ADMIN can modify definitions
+router.post(
+  '/',
+  restrictTo('SUPERADMIN', 'ADMIN'),
+  customFieldController.createCustomField
+);
+
+router.put(
+  '/:id',
+  restrictTo('SUPERADMIN', 'ADMIN'),
+  customFieldController.updateCustomField
+);
+
+router.delete(
+  '/:id',
+  restrictTo('SUPERADMIN', 'ADMIN'),
+  customFieldController.deleteCustomField
+);
 
 module.exports = router;
