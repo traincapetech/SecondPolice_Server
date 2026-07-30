@@ -9,14 +9,17 @@ const getCustomFields = async (req, res, next) => {
     const fields = await prisma.customFieldDefinition.findMany({
       where: {
         tenantId,
-        entityType
+        entityType,
       },
       orderBy: {
-        fieldName: 'asc'
-      }
+        fieldName: 'asc',
+      },
     });
 
-    res.status(200).json({ status: 'success', data: fields });
+    res.status(200).json({
+      status: 'success',
+      data: fields,
+    });
   } catch (error) {
     next(error);
   }
@@ -26,7 +29,15 @@ const getCustomFields = async (req, res, next) => {
 const createCustomField = async (req, res, next) => {
   try {
     const tenantId = req.user.tenantId;
-    const { entityType, fieldName, fieldLabel, fieldType, isRequired, options } = req.body;
+
+    const {
+      entityType,
+      fieldName,
+      fieldLabel,
+      fieldType,
+      isRequired,
+      options,
+    } = req.body;
 
     const newField = await prisma.customFieldDefinition.create({
       data: {
@@ -36,11 +47,14 @@ const createCustomField = async (req, res, next) => {
         fieldLabel,
         fieldType,
         isRequired: isRequired || false,
-        options: options || null
-      }
+        options: options || null,
+      },
     });
 
-    res.status(201).json({ status: 'success', data: newField });
+    res.status(201).json({
+      status: 'success',
+      data: newField,
+    });
   } catch (error) {
     next(error);
   }
@@ -51,19 +65,48 @@ const updateCustomField = async (req, res, next) => {
   try {
     const { id } = req.params;
     const tenantId = req.user.tenantId;
-    const { fieldLabel, fieldType, isRequired, options } = req.body;
 
-    const updatedField = await prisma.customFieldDefinition.update({
+    const {
+      fieldLabel,
+      fieldType,
+      isRequired,
+      options,
+    } = req.body;
+
+    // Verify that the field belongs to this tenant
+    const existingField = await prisma.customFieldDefinition.findFirst({
       where: {
         id,
-        tenantId // Security check implicitly handled if we fetch first, but Prisma 5 allows compound or just id. Wait, let's verify tenant.
+        tenantId,
+      },
+    });
+
+    if (!existingField) {
+      return res.status(404).json({
+        status: 'fail',
+        message: 'Custom field not found.',
+      });
+    }
+
+    const updateResult = await prisma.customFieldDefinition.updateMany({
+      where: {
+        id,
+        tenantId
       },
       data: {
-        fieldLabel,
-        fieldType,
-        isRequired,
-        options
+        ...(fieldLabel !== undefined && { fieldLabel }),
+        ...(fieldType !== undefined && { fieldType }),
+        ...(isRequired !== undefined && { isRequired }),
+        ...(options !== undefined && { options })
       }
+    });
+
+    if (updateResult.count === 0) {
+      return next(new AppError('Custom field not found', 404));
+    }
+
+    const updatedField = await prisma.customFieldDefinition.findUnique({
+      where: { id }
     });
 
     res.status(200).json({ status: 'success', data: updatedField });
@@ -78,13 +121,16 @@ const deleteCustomField = async (req, res, next) => {
     const { id } = req.params;
     const tenantId = req.user.tenantId;
 
-    await prisma.customFieldDefinition.delete({
+    const deleteResult = await prisma.customFieldDefinition.deleteMany({
       where: {
         id,
-        // tenantId is not in the unique identifier for delete unless we use a compound key. 
-        // We should verify tenant ownership first to be safe.
+        tenantId
       }
     });
+
+    if (deleteResult.count === 0) {
+      return next(new AppError('Custom field not found', 404));
+    }
 
     res.status(204).json({ status: 'success', data: null });
   } catch (error) {
@@ -96,5 +142,5 @@ module.exports = {
   getCustomFields,
   createCustomField,
   updateCustomField,
-  deleteCustomField
+  deleteCustomField,
 };
