@@ -16,6 +16,7 @@ const server = http.createServer(app);
 
 // Attach Socket.IO (JWT auth + per-user rooms)
 initSocket(server);
+
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
 });
@@ -27,6 +28,3 @@ process.on('unhandledRejection', err => {
     process.exit(1);
   });
 });
-
- 
-// trigger restart

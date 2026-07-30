@@ -51,6 +51,7 @@ exports.getRole = async (req, res, next) => {
 exports.createRole = async (req, res, next) => {
   try {
     const { name, permissions, userIds } = req.body;
+    const tenantId = req.user.tenantId;
 
     if (!name) {
       return next(new AppError('Please provide a role name', 400));
@@ -59,43 +60,98 @@ exports.createRole = async (req, res, next) => {
     const data = {
       name,
       permissions: permissions || {},
-      tenantId: req.user.tenantId
+      tenantId
     };
 
-    if (Array.isArray(userIds)) {
-      data.users = { connect: userIds.map(id => ({ id })) };
+    let verifiedUsers = [];
+
+    if (Array.isArray(userIds) && userIds.length > 0) {
+      verifiedUsers = await prisma.user.findMany({
+        where: {
+          id: { in: userIds },
+          tenantId
+        },
+        select: { id: true }
+      });
+
+      if (verifiedUsers.length !== userIds.length) {
+        return next(
+          new AppError(
+            'One or more user IDs are invalid or belong to another tenant.',
+            400
+          )
+        );
+      }
+
+      data.users = {
+        connect: verifiedUsers.map(user => ({ id: user.id }))
+      };
     }
 
     const role = await prisma.customRole.create({
       data,
-      include: { 
-        users: { select: { id: true, name: true, workspaceId: true, tenantId: true } },
-        tenant: { select: { name: true } }
+      include: {
+        users: {
+          select: {
+            id: true,
+            name: true,
+            workspaceId: true,
+            tenantId: true
+          }
+        },
+        tenant: {
+          select: {
+            name: true
+          }
+        }
       }
     });
 
-    // Update workspaceId for connected users
+    // Update workspaceId for connected users in parallel
     if (Array.isArray(userIds) && userIds.length > 0) {
-      for (const user of role.users) {
-        const existingRandom = user.workspaceId ? user.workspaceId.slice(-5) : null;
-        const newId = await generateWorkspaceId(role.tenant.name, role.name, existingRandom);
-        await prisma.user.update({
+      const createPromises = role.users.map(async (user) => {
+        const existingRandom = user.workspaceId
+          ? user.workspaceId.slice(-5)
+          : null;
+
+        const newId = await generateWorkspaceId(
+          role.tenant.name,
+          role.name,
+          existingRandom
+        );
+
+        return prisma.user.update({
           where: { id: user.id },
           data: { workspaceId: newId }
         });
-      }
+      });
+      await Promise.all(createPromises);
     }
 
     // Refresh role object to include updated workspaceIds
     const finalRole = await prisma.customRole.findUnique({
       where: { id: role.id },
-      include: { 
-        users: { select: { id: true, name: true, workspaceId: true, tenantId: true } },
-        tenant: { select: { name: true } }
+      include: {
+        users: {
+          select: {
+            id: true,
+            name: true,
+            workspaceId: true,
+            tenantId: true
+          }
+        },
+        tenant: {
+          select: {
+            name: true
+          }
+        }
       }
     });
 
-    res.status(201).json({ status: 'success', data: { role: finalRole } });
+    res.status(201).json({
+      status: 'success',
+      data: { role: finalRole }
+    });
   } catch (error) {
     next(error);
   }
@@ -107,9 +163,13 @@ exports.createRole = async (req, res, next) => {
 exports.updateRole = async (req, res, next) => {
   try {
     const { name, permissions, userIds } = req.body;
+    const tenantId = req.user.tenantId;
 
     const role = await prisma.customRole.findFirst({
-      where: { id: req.params.id, tenantId: req.user.tenantId }
+      where: {
+        id: req.params.id,
+        tenantId
+      }
     });
 
     if (!role) {
@@ -118,42 +178,102 @@ exports.updateRole = async (req, res, next) => {
 
     const data = {
       name: name !== undefined ? name : role.name,
-      permissions: permissions !== undefined ? permissions : role.permissions
+      permissions:
+        permissions !== undefined ? permissions : role.permissions
     };
 
     if (Array.isArray(userIds)) {
-      data.users = { set: userIds.map(id => ({ id })) };
+      let verifiedUsers = [];
+
+      if (userIds.length > 0) {
+        verifiedUsers = await prisma.user.findMany({
+          where: {
+            id: { in: userIds },
+            tenantId
+          },
+          select: { id: true }
+        });
+
+        if (verifiedUsers.length !== userIds.length) {
+          return next(
+            new AppError(
+              'One or more user IDs are invalid or belong to another tenant.',
+              400
+            )
+          );
+        }
+      }
+
+      data.users = {
+        set: verifiedUsers.map(user => ({ id: user.id }))
+      };
     }
 
     const updatedRole = await prisma.customRole.update({
       where: { id: req.params.id },
       data,
-      include: { 
-        users: { select: { id: true, name: true, workspaceId: true, tenantId: true } },
-        tenant: { select: { name: true } }
+      include: {
+        users: {
+          select: {
+            id: true,
+            name: true,
+            workspaceId: true,
+            tenantId: true
+          }
+        },
+        tenant: {
+          select: {
+            name: true
+          }
+        }
       }
     });
 
-    // Update workspaceId for all users in this role (since role name might have changed or new users connected)
-    for (const user of updatedRole.users) {
-      const existingRandom = user.workspaceId ? user.workspaceId.slice(-5) : null;
-      const newId = await generateWorkspaceId(updatedRole.tenant.name, updatedRole.name, existingRandom);
-      await prisma.user.update({
+    // Update workspaceId for all users in this role in parallel
+    const updatePromises = updatedRole.users.map(async (user) => {
+      const existingRandom = user.workspaceId
+        ? user.workspaceId.slice(-5)
+        : null;
+
+      const newId = await generateWorkspaceId(
+        updatedRole.tenant.name,
+        updatedRole.name,
+        existingRandom
+      );
+
+      return prisma.user.update({
         where: { id: user.id },
         data: { workspaceId: newId }
       });
-    }
+    });
+    await Promise.all(updatePromises);
 
-    // Refresh updatedRole object to include updated workspaceIds
+    // Refresh updated role to include updated workspaceIds
     const finalUpdatedRole = await prisma.customRole.findUnique({
       where: { id: updatedRole.id },
-      include: { 
-        users: { select: { id: true, name: true, workspaceId: true, tenantId: true } },
-        tenant: { select: { name: true } }
+      include: {
+        users: {
+          select: {
+            id: true,
+            name: true,
+            workspaceId: true,
+            tenantId: true
+          }
+        },
+        tenant: {
+          select: {
+            name: true
+          }
+        }
       }
     });
 
-    res.status(200).json({ status: 'success', data: { role: finalUpdatedRole } });
+    res.status(200).json({
+      status: 'success',
+      data: {
+        role: finalUpdatedRole
+      }
+    });
   } catch (error) {
     next(error);
   }
@@ -164,17 +284,13 @@ exports.updateRole = async (req, res, next) => {
  */
 exports.deleteRole = async (req, res, next) => {
   try {
-    const role = await prisma.customRole.findFirst({
+    const deleteResult = await prisma.customRole.deleteMany({
       where: { id: req.params.id, tenantId: req.user.tenantId }
     });
 
-    if (!role) {
+    if (deleteResult.count === 0) {
       return next(new AppError('No role found with that ID', 404));
     }
-
-    await prisma.customRole.delete({
-      where: { id: req.params.id }
-    });
 
     res.status(204).json({ status: 'success', data: null });
   } catch (error) {
